@@ -1,0 +1,90 @@
+/* css/footer.css (VERSÃO REDESENHADA E COMPACTA) */
+
+.footer-redesenhado {
+    background-color: var(--cor-destaque);
+    color: var(--cor-texto-secundario);
+    padding: 40px 30px 20px 30px; /* Padding reduzido */
+    border-top: 1px solid var(--cor-borda);
+}
+
+.footer-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex; /* Usa Flexbox para alinhar as colunas */
+    gap: 40px; /* Espaço entre a coluna "Sobre" e a de "Sedes" */
+}
+
+.footer-coluna {
+    flex: 1; /* Faz as colunas dividirem o espaço */
+}
+
+.footer-titulo {
+    font-size: 1.2em;
+    color: var(--cor-fundo);
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+.sobre-grupo{
+  border-right: 2px solid var(--cor-borda-suave);
+  padding-right: 40px;
+}
+
+.sedes-secao{
+  border-right: 2px solid var(--cor-borda-suave);
+  padding-right: 40px;
+}
+
+.Contato-secao{
+  padding-right: 40px;
+  color: var(--cor-fundo);
+}
+
+.sobre-grupo p {
+    line-height: 1.6;
+    font-size: 0.9em;
+    color: var(--cor-fundo);
+}
+
+.sedes-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* Espaço entre os cards de sede */
+}
+
+.sede-card {
+    display: flex; /* Alinha a imagem e o texto lado a lado */
+    align-items: center;
+    gap: 15px;
+    background-color: transparent; /* Remove o fundo do card antigo */
+}
+
+.sede-card img {
+    width: 80px; /* Imagem bem menor e redonda */
+    height: 80px;
+    object-fit: cover;
+    border-radius: 50%;
+    flex-shrink: 0; /* Impede a imagem de encolher */
+}
+
+.sede-info h4 {
+    margin: 0 0 5px 0;
+    font-size: 1em;
+    color: var(--cor-fundo);
+}
+
+.sede-info p {
+    margin: 0;
+    font-size: 0.85em;
+    color: var(--cor-fundo);
+}
+
+/* Linha de Copyright no final */
+.footer-copyright {
+    text-align: center;
+    margin-top: 10px;
+    padding-top: 10px;
+    color: var(--cor-fundo);
+    font-size: 0.8em;
+}

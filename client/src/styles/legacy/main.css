@@ -1,0 +1,42 @@
+/* ==============================================
+   Arquivo CSS Principal - Intranet Grupo Alpes
+   ==============================================
+
+/* Importação dos estilos base e de layout */
+@import url('base.css');
+@import url('layout.css');
+@import url('clientes.css');
+
+/* Importação dos componentes estruturais da página */
+@import url('footer.css');
+
+/* Importação dos componentes de conteúdo específico */
+@import url('dashboard.css');
+@import url('aniversariantes.css');
+@import url('projetos.css');
+@import url('chat.css');
+@import url('popup.css');
+
+/* Importação dos estilos da página de login */
+@import url('login.css'); 
+/* Importação dos estilos da página de Equipe*/
+@import url('equipe.css');
+/* Importação dos estilos da página de Tecnologias*/
+@import url('tecnologias.css');
+/* Importação dos estilos da página de Noticias*/
+@import url('noticias.css');
+/* Importação dos estilos da função dark-light*/
+@import url('darklight.css');
+/* Importação dos estilos da função Enquete*/
+@import url('enquete.css');
+/* Importação dos estilos da Barra SideBar */
+@import url('sidebar.css');
+/*Importação dos estilos do HTML Aniversariantes */
+@import url('aniversariantes-page.css');
+/*Importação dos estilos do Equipamentos*/
+@import url('equipamentos.css');
+@import url('theme-switcher.css');
+@import url('header.css');
+
+/* Em main.css */
+@import url('elevenlabs-page.css');

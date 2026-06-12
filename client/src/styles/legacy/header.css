@@ -1,0 +1,156 @@
+/* css/header.css */
+
+/* --- ESTILOS PARA O CONTAINER DA NOTIFICAÇÃO --- */
+.notificacao-container {
+    position: relative; /* Essencial para o posicionamento do dropdown */
+}
+
+/* Estilo do botão do sino */
+.header-btn {
+    background: none;
+    border: none;
+    color: var(--cor-texto-invertido); /* Usa a cor do texto do header */
+    font-size: 1.2em;
+    cursor: pointer;
+    position: relative;
+    padding: 5px;
+    transition: color 0.2s;
+}
+.header-btn:hover {
+    color: #fff; /* Fica mais claro no hover */
+}
+
+/* O círculo vermelho do contador */
+.notificacao-contador {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background-color: #e74c3c; /* Vermelho */
+    color: white;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: none; /* Escondido por padrão */
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+/* O menu dropdown que aparece ao clicar */
+.notificacoes-dropdown {
+    position: absolute;
+    top: 50px; /* Posição abaixo do sino */
+    right: 0;
+    width: 320px;
+    background-color: var(--cor-surface);
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    z-index: 1000;
+    max-height: 400px;
+    overflow-y: auto;
+    display: none; /* Escondido por padrão */
+}
+.notificacoes-dropdown.visivel {
+    display: block; /* Classe que o JavaScript usa para mostrar */
+}
+
+/* Estilo de cada item dentro do dropdown */
+.notificacao-item {
+    padding: 15px;
+    border-bottom: 1px solid var(--cor-borda-suave);
+    font-size: 0.9em;
+}
+.notificacao-item:last-child {
+    border-bottom: none;
+}
+.notificacao-item a {
+    text-decoration: none;
+    color: var(--cor-texto-principal);
+}
+.notificacao-item:hover {
+    background-color: var(--cor-fundo-hover);
+}
+
+.notificacao-item.nao-lida {
+    background-color: var(--cor-fundo-hover);
+    font-weight: bold;
+}
+
+.user-profile-area {
+    position: relative; /* Essencial para o posicionamento do menu dropdown */
+}
+
+.user-profile-trigger {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 10px;
+    border-radius: 25px; /* Deixa o contorno arredondado */
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.user-profile-trigger:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Efeito de hover sutil no header */
+}
+
+#user-avatar {
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 2px solid var(--cor-texto-invertido);
+}
+
+#user-name {
+    font-weight: bold;
+    color: var(--cor-texto-invertido); /* Garante que o texto seja visível no header escuro */
+    white-space: nowrap;
+}
+
+/* --- O DROPDOWN DO USUÁRIO --- */
+.user-dropdown-menu {
+    display: none; /* Começa escondido */
+    position: absolute;
+    top: calc(100% + 10px); /* Posição abaixo do gatilho */
+    right: 0;
+    width: 180px; /* Largura do menu */
+    background-color: var(--cor-surface);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 1001; /* Garante que fique acima de outros elementos */
+    overflow: hidden;
+}
+
+.user-dropdown-menu.ativo {
+    display: block; /* Classe que o JS usa para mostrar o menu */
+}
+
+.user-dropdown-menu a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 15px;
+    color: var(--cor-texto-principal); /* Cor para o menu em fundo claro */
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.user-dropdown-menu a:hover {
+    background-color: var(--cor-fundo-hover);
+    color: var(--cor-destaque);
+}
+
+.user-dropdown-menu a i {
+    width: 15px;
+}
+
+.header-direita {
+    display: flex;
+    align-items: center;
+    gap: 20px; /* Espaçamento entre os ícones e o perfil */
+}

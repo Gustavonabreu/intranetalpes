@@ -1,0 +1,26 @@
+/* chat.css */
+.section_chat {
+  background-color: transparent;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.section_chat h3 {
+    /* Estilos para o título do chat*/
+}
+
+.section_chat p {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* Remove o fundo branco e a aparência de card do container principal */
+.container {
+  background-color: transparent; /* Deixa o fundo transparente */
+  box-shadow: none;             /* Remove qualquer sombra que possa existir no container */
+  border: none;                   /* Remove qualquer borda */
+}

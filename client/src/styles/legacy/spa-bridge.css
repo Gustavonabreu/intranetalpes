@@ -1,0 +1,113 @@
+﻿.coluna-nav.icon-nav .menu-principal > ul > li > a.ativo {
+  background-color: var(--cor-destaque);
+  color: var(--cor-texto-invertido);
+}
+
+.coluna-nav.icon-nav .menu-principal > ul > li > a {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@media (max-width: 1100px) {
+  .equipe-grid {
+    grid-template-columns: repeat(2, 1fr);
+    justify-items: center;
+  }
+}
+
+@media (max-width: 700px) {
+  .equipe-grid {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    row-gap: 30px;
+    column-gap: 0;
+    padding: 10px;
+  }
+}
+
+.aniversariantes-swiper .swiper-wrapper {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.aniversariantes-swiper .swiper-slide {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 1100px) {
+  .aniversariantes-swiper .swiper-wrapper {
+    grid-template-columns: repeat(2, minmax(240px, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .aniversariantes-swiper .swiper-wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+.noticia-card {
+  border: 1px solid var(--cor-borda);
+  padding: 0;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.login-page-shell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+  box-sizing: border-box;
+  gap: 140px;
+}
+
+@media (max-width: 1100px) {
+  .login-page-shell {
+    flex-direction: column-reverse;
+    gap: 30px;
+  }
+}
+
+.btn-principal,
+.btn-secundario {
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-principal {
+  background-color: var(--cor-destaque);
+  color: var(--cor-texto-invertido);
+}
+
+.btn-secundario {
+  background-color: var(--cor-fundo);
+  border: 1px solid var(--cor-borda);
+  color: var(--cor-texto-principal);
+}
+
+.message.assistant.error {
+  background-color: #fbeaea;
+  color: #8b1d1d;
+}
+
+.section_notificacoes iframe {
+  width: 100%;
+  max-width: 850px;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  border: 0;
+}

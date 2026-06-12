@@ -1,0 +1,261 @@
+.equipe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  justify-items: center;
+  padding: 20px;
+}
+
+.card-container-equipe {
+  width: 100%;
+  max-width: 320px;
+}
+
+.card-equipe.modelo-assinatura {
+  --card-radius: 22px;
+  background: radial-gradient(120% 90% at 50% 10%, #173770 0%, #0a2550 45%, #071631 100%);
+  border-radius: var(--card-radius);
+  box-shadow: 0 18px 40px rgba(2, 9, 24, 0.55);
+  color: #fff;
+  height: 470px;
+  overflow: hidden;
+  position: relative;
+}
+
+.card-equipe.modelo-assinatura::before {
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+  background: rgba(3, 10, 24, 0);
+  content: '';
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  border-radius: inherit;
+  transition: opacity 0.3s ease, backdrop-filter 0.3s ease, -webkit-backdrop-filter 0.3s ease,
+    background 0.3s ease;
+  z-index: 6;
+}
+
+.card-equipe.modelo-assinatura::after {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 72%);
+  content: '';
+  height: 130px;
+  left: -44px;
+  pointer-events: none;
+  position: absolute;
+  top: -50px;
+  width: 130px;
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.card-content-equipe {
+  inset: 0 auto auto 0;
+  left: 0;
+  padding: 20px 22px;
+  position: absolute;
+  right: 0;
+  text-align: center;
+  top: 0;
+  transition: transform 0.45s ease;
+  z-index: 5;
+}
+
+.card-logo-equipe {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.card-logo-equipe img {
+  height: auto;
+  max-width: 190px;
+  width: 100%;
+}
+
+.profile-pic-front {
+  background: #fff;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
+  height: 145px;
+  margin: 0 auto 10px;
+  overflow: hidden;
+  width: 145px;
+}
+
+.profile-pic-front img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.profile-name-front {
+  color: #ffffff !important;
+  font-size: 26px;
+  font-size: clamp(20px, 1.2vw, 28px);
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  line-height: 1.08;
+  margin: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.profile-sector-front {
+  color: #ffffff !important;
+  font-size: 14px;
+  letter-spacing: 1.8px;
+  margin: 6px 0 0;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.card-interaction-equipe {
+  background: transparent;
+  bottom: 0;
+  height: 300px;
+  left: 0;
+  position: absolute;
+  right: 0;
+  transform: translateY(162px);
+  transition: transform 0.55s ease;
+  border-radius: 0 0 var(--card-radius) var(--card-radius);
+  overflow: hidden;
+  z-index: 10;
+}
+
+.card-interaction-equipe::before {
+  background: #ffffff;
+  content: '';
+  inset: 78px 0 0;
+  opacity: 0;
+  position: absolute;
+  border-radius: 0 0 var(--card-radius) var(--card-radius);
+  transition: opacity 0.25s ease;
+  z-index: 1;
+}
+
+.mountain-graphic-equipe {
+  display: block;
+  height: 236px;
+  left: 0;
+  object-fit: contain;
+  object-position: bottom center;
+  pointer-events: none;
+  position: absolute;
+  top: -86px;
+  width: 100%;
+  z-index: 3;
+}
+
+.contact-details-equipe {
+  opacity: 0;
+  left: 0;
+  padding: 0 20px;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 84px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  visibility: hidden;
+  z-index: 5;
+}
+
+.contact-item-equipe {
+  align-items: flex-start;
+  color: #111111;
+  display: flex;
+  font-size: 13px;
+  gap: 12px;
+  line-height: 1.2;
+  margin-bottom: 0;
+}
+
+.contact-item-equipe i {
+  color: #111111;
+  font-size: 18px;
+  margin-top: 1px;
+  width: 20px;
+}
+
+.contact-button-equipe {
+  background: #ffffff;
+  border-radius: 12px;
+  color: #0b0b0b;
+  display: inline-block;
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: auto;
+  padding: 12px 14px;
+  text-align: center;
+  text-decoration: none;
+  width: 100%;
+}
+
+.contact-button-equipe.disabled {
+  background: rgba(0, 0, 0, 0.12);
+  color: #111111;
+}
+
+.card-equipe.modelo-assinatura:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 0 32px rgba(201, 221, 255, 0.42),
+    0 24px 44px rgba(2, 9, 24, 0.65);
+}
+
+.card-equipe.modelo-assinatura:hover::before {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  background: rgba(3, 10, 24, 0.12);
+  opacity: 1;
+}
+
+.card-equipe.modelo-assinatura:hover .card-content-equipe {
+  transform: translateY(-10px);
+}
+
+.card-equipe.modelo-assinatura:hover .card-interaction-equipe {
+  transform: translateY(0);
+}
+
+.card-equipe.modelo-assinatura:hover .card-interaction-equipe::before {
+  opacity: 1;
+}
+
+.card-equipe.modelo-assinatura:hover .contact-details-equipe {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition-delay: 0.18s;
+  visibility: visible;
+}
+
+.equipe-instruction-text {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 14px;
+  margin: 8px 0 0;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .card-equipe.modelo-assinatura {
+    height: 470px;
+  }
+
+  .profile-name-front {
+    font-size: 30px;
+  }
+
+  .contact-button-equipe {
+    font-size: 15px;
+  }
+
+  .equipe-instruction-text {
+    font-size: 18px;
+  }
+}

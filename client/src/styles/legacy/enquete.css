@@ -1,0 +1,57 @@
+/* Estilos para o widget de Enquete */
+
+.enquete-pergunta {
+    font-weight: bold;
+    margin-bottom: 15px;
+    color: var(--cor-texto-principal);
+}
+
+.enquete-form .enquete-opcao {
+    margin-bottom: 10px;
+}
+
+.enquete-form label {
+    margin-left: 8px;
+    cursor: pointer;
+}
+
+.enquete-form button {
+    margin-top: 15px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 5px;
+    background-color: var(--cor-destaque);
+    color: var(--cor-texto-invertido);
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.enquete-form button:hover {
+    background-color: var(--cor-destaque-hover);
+}
+
+/* Estilos dos Resultados */
+.enquete-resultados {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.resultado-item .resultado-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.9em;
+    margin-bottom: 5px;
+}
+.resultado-barra-fundo {
+    height: 8px;
+    width: 100%;
+    background-color: var(--cor-fundo);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.resultado-barra-preenchimento {
+    height: 100%;
+    background-color: var(--cor-destaque-secundario);
+    border-radius: 4px;
+}

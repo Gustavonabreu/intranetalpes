@@ -1,0 +1,98 @@
+/* css/login.css (VERSÃO CORRIGIDA COM LAYOUT DIVIDIDO) */
+
+body.login-page {
+    margin: 0;
+    font-family: 'Lato', sans-serif;
+    background-color: var(--cor-fundo);
+    display: flex;
+    align-items: center;
+    justify-content: center; 
+    min-height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+    gap: 300px; 
+}
+
+/* Coluna da Esquerda: Formulário */
+.login-container {
+    background: var(--cor-surface);
+    padding: 40px;
+    text-align: center;
+    box-shadow: var(--sombra-card);
+    width: 100%;
+    max-width: 420px; /* Largura máxima do formulário */
+}
+
+.login-logo {
+    max-width: 180px;
+    margin-bottom: 20px;
+}
+
+.login-container h2 {
+  background: linear-gradient(90deg, #14bbf3, #0f0bfa, #c0d7d8);
+  background-size: 200% auto;
+  color: transparent;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: brilhoTexto 3s linear infinite;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.form-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: var(--cor-texto-secundario);
+}
+
+.form-group input {
+    box-sizing: border-box; 
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--cor-borda);
+    border-radius: 5px;
+    font-size: 1rem;
+    background-color: var(--cor-fundo);
+    color: var(--cor-texto-principal);
+}
+
+.login-btn {
+    width: 100%;
+    background-color: var(--cor-destaque);
+    color: white;
+    border: none;
+    padding: 14px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    font-weight: bold;
+}
+
+.login-btn:hover {
+    background-color: var(--cor-destaque-hover);
+}
+
+.error-message {
+    color: #e74c3c;
+    min-height: 20px;
+    font-weight: bold;
+}
+
+/* Coluna da Direita: Imagem */
+.imagem-container {
+    width: 100%;
+    max-width: 500px; /* Largura máxima da imagem */
+    text-align: center; /* Centraliza a imagem dentro do container */
+}
+
+.imagem-container img {
+    max-width: 90%;
+    height: auto;
+}

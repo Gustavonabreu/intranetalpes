@@ -1,0 +1,64 @@
+/* base.css */
+body {
+  background-color: #ffffff;
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  color: #333;
+}
+
+body.pagina {
+  background: #001f54;
+}
+
+.content_wrap {
+  max-width: 1200px;
+  margin: auto;
+}
+
+/* ======================================================= */
+/* ESTILO DA FAIXA DE TÍTULO DE SEÇÃO                      */
+/* ======================================================= */
+
+.faixa-titulo {
+  text-align: center;
+  margin: 60px 0; /* Espaçamento acima e abaixo da faixa */
+  overflow: hidden; /* Garante que as linhas não quebrem o layout */
+}
+
+.faixa-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.faixa-titulo h2 {
+  margin: 0;
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #333;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  
+  /* A mágica para as linhas laterais */
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Cria a linha ANTES do texto */
+.faixa-titulo h2::before {
+  content: '';
+  flex-grow: 1; /* Faz a linha crescer para ocupar o espaço */
+  height: 2px;
+  background-color: #ccc; /* Cor da linha */
+  margin-right: 20px; /* Espaço entre a linha e o texto */
+}
+
+/* Cria a linha DEPOIS do texto */
+.faixa-titulo h2::after {
+  content: '';
+  flex-grow: 1;
+  height: 2px;
+  background-color: #ccc;
+  margin-left: 20px;
+}

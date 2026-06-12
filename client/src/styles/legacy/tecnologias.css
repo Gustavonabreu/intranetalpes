@@ -1,0 +1,93 @@
+/* css/tecnologias.css (VERSÃO SIMPLIFICADA COM IMAGENS DE FUNDO) */
+
+.tecnologias-grid {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 40px;
+    padding: 40px 20px;
+}
+
+.container-card-tech {
+    position: relative;
+    width: 220px;
+    height: 300px;
+    transition: transform 0.3s ease-in-out; /* Transição mais leve */
+    text-decoration: none; /* Remover sublinhado do link */
+    color: inherit;
+    border-radius: 20px; /* Manter o arredondamento */
+    overflow: hidden; /* Garantir que a imagem de fundo não vaze */
+}
+
+.container-card-tech:hover {
+    transform: translateY(-10px); /* Efeito de elevação mais simples */
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3); /* Sombra mais pronunciada no hover */
+}
+
+.card-tech {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    flex-direction: column; /* Para alinhar o texto verticalmente */
+    justify-content: center;
+    align-items: center;
+    border-radius: 20px;
+    background-color: var(--cor-surface); /* Fundo do card */
+    border: 2px solid var(--cor-borda); /* Borda mais discreta */
+    box-shadow: var(--sombra-card); /* Sombra do tema */
+    transition: background-color 0.3s ease-in-out, border-color 0.3s ease-in-out;
+    
+    /* Configuração da imagem de fundo */
+    background-size: 70%; /* Ajuste o tamanho da logo (ex: 70% do card) */
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.container-card-tech:hover .card-tech {
+    border-color: var(--cor-destaque); /* Mudar borda no hover */
+    background-color: var(--cor-surface-hover); /* Mudar fundo no hover */
+}
+
+.card-tech-title {
+    opacity: 0; /* Começa invisível */
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+    position: absolute;
+    bottom: 20px; /* Posição do título */
+    width: 100%;
+    text-align: center;
+    font-size: 1.5em; /* Tamanho da fonte */
+    font-weight: bold;
+    color: var(--cor-destaque); /* Cor do texto do tema */
+    text-shadow: 0 0 10px rgba(0,0,0,0.5); /* Sombra no texto */
+}
+
+.container-card-tech:hover .card-tech-title {
+    opacity: 1; /* Visível no hover */
+    transform: translateY(-10px); /* Efeito de subir */
+}
+
+/* Você pode adicionar aqui um pouco de estilo para o canvas se quiser um brilho leve */
+.canvas {
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    overflow: hidden; /* Garantir que os elementos do canvas fiquem dentro do card */
+    pointer-events: none; /* Ignorar eventos do mouse */
+}
+
+/* Opcional: Adicionar um efeito de brilho sutil ao card no hover */
+.container-card-tech:hover .card-tech::before {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    background: radial-gradient(circle at center, rgba(var(--cor-destaque-rgb), 0.3) 0%, transparent 70%);
+    filter: blur(15px);
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    z-index: -1;
+}
+
+.container-card-tech:hover .card-tech::before {
+    opacity: 1;
+}

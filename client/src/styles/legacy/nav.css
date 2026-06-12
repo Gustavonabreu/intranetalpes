@@ -1,0 +1,200 @@
+/* nav.css (CORRIGIDO) */
+
+.navbar {
+  background-color: var(--cor-destaque);
+  position: fixed; /* Fixa no topo */
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 25px;
+  box-sizing: border-box;
+}
+
+.navbar-brand img {
+  max-height: 55px;
+  width: auto;
+  display: block;
+}
+
+.menu-container {
+  display: flex;
+}
+
+.menu-lista {
+  list-style: none;
+  display: flex;
+  margin: 0;
+  padding: 0;
+  gap: 25px; /* Espaço entre os links */
+}
+
+.menu-lista li a {
+  text-decoration: none;
+  color: #ffffff; 
+  font-weight: bold;
+  font-size: 16px;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.menu-lista li a:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Botão Hambúrguer escondido no desktop */
+.menu-hamburguer {
+  display: none;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  z-index: 1001; /* Garante que fique na frente do menu mobile */
+}
+
+/* --- Menu Mobile (telas pequenas) --- */
+@media (max-width: 992px) {
+  /* Esconde a lista de links por padrão */
+  .menu-container {
+    display: none; 
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh; /* Ocupa a tela inteira */
+    background-color: rgba(10, 25, 47, 0.95); /* Fundo escuro com transparência */
+    backdrop-filter: blur(5px);
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* Mostra o menu quando a classe 'ativo' for adicionada pelo JS */
+  .menu-container.ativo {
+    display: flex;
+  }
+
+  /* Ajusta a lista para o modo vertical */
+  .menu-lista {
+    flex-direction: column;
+    text-align: center;
+    gap: 20px;
+  }
+  
+  .menu-lista li a {
+    font-size: 1.5rem; /* Letras maiores no mobile */
+  }
+
+  /* Mostra o botão hambúrguer */
+  .menu-hamburguer {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .menu-hamburguer span {
+    display: block;
+    width: 25px;
+    height: 3px;
+    background-color: white; /* Barrinhas brancas */
+  }
+}
+
+.user-profile-area { 
+  position: relative; 
+}
+
+#user-logged-in img {
+   width: 40px; 
+   height: 40px;
+   border-radius: 50%; 
+   cursor: pointer; 
+  }
+.user-dropdown { 
+  display: none; 
+  position: absolute; 
+  right: 0; 
+  background-color: white; 
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  border-radius: 5px;
+  overflow: hidden;
+  z-index: 100;
+}
+#user-logged-in:hover .user-dropdown {
+   display: block;
+}
+.user-dropdown a { 
+  display: block; 
+  padding: 10px 20px; 
+  color: #333; 
+  text-decoration: none; }
+.user-dropdown a:hover { background-color: #f1f1f1; }
+
+.notificacao-container {
+    position: relative; 
+}
+
+.header-btn {
+    background: none;
+    border: none;
+    color: var(--cor-texto-secundario);
+    font-size: 1.2em;
+    cursor: pointer;
+    position: relative;
+    padding: 5px;
+}
+.header-btn:hover {
+    color: var(--cor-destaque);
+}
+
+.notificacao-contador {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #e74c3c;
+    color: white;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: none; /* Escondido por padrão */
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+}
+
+.notificacoes-dropdown {
+    position: absolute;
+    top: 45px; /* Posição abaixo do sino */
+    right: 0;
+    width: 320px;
+    background-color: var(--cor-surface);
+    border: 1px solid var(--cor-borda);
+    border-radius: 8px;
+    box-shadow: var(--sombra-dropdown);
+    z-index: 1000;
+    max-height: 400px;
+    overflow-y: auto;
+    display: none; /* Escondido por padrão */
+}
+.notificacoes-dropdown.visivel {
+    display: block; /* Classe para mostrar */
+}
+
+.notificacao-item {
+    padding: 15px;
+    border-bottom: 1px solid var(--cor-borda);
+    font-size: 0.9em;
+}
+.notificacao-item:last-child {
+    border-bottom: none;
+}
+.notificacao-item a {
+    text-decoration: none;
+    color: var(--cor-texto-principal);
+}
+.notificacao-item:hover {
+    background-color: var(--cor-fundo-hover);
+}

@@ -1,0 +1,203 @@
+.projetos_grid {
+    display: grid;
+    grid-template-columns: 1fr; /* Um card por linha */
+    gap: 25px; 
+}
+
+.projeto-card-novo {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background-color: var(--cor-surface);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: var(--sombra-card);
+    margin-bottom: 20px;
+    transition: all 0.3s ease; 
+    border: 2px solid transparent; 
+    cursor: pointer;
+}
+
+.projeto-card-novo:hover {
+    box-shadow: 0 6px 16px rgba(133, 131, 131, 0.253);
+    transform: translateY(-5px);
+}
+
+.projeto-card-novo.video-novo {
+    border-color: var(--cor-texto-invertido);
+    animation: pulse-borda 2s infinite;
+}
+
+/* A bolinha vermelha antiga não é mais necessária */
+.indicador-video-novo {
+    display: none;
+}
+
+@keyframes pulse-borda {
+    0% { box-shadow: 0 0 5px rgb(252, 8, 0); }
+    50% { box-shadow: 0 0 20px rgba(180, 59, 59, 0.767); }
+    100% { box-shadow: 0 0 5px rgba(252, 8, 0); }
+}
+
+/* Imagem do projeto */
+.projeto-imagem img {
+    width: 150px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 6px;
+    background-color: var(--cor-fundo);
+}
+
+/* Informações do projeto */
+.projeto-info {
+    flex-grow: 1;
+}
+
+.projeto-info .projeto-titulo {
+    margin: 0 0 5px 0;
+    font-size: 1.2em;
+    font-weight: bold;
+    color: var(--cor-texto-principal);
+}
+
+.projeto-info .projeto-descricao {
+    margin: 0 0 15px 0;
+    font-size: 0.9em;
+    color: var(--cor-texto-secundario);
+}
+
+.progresso-container {
+    background-color: var(--cor-secprogresso);
+    border-radius: 10px;
+    height: 8px;
+    width: 80%; 
+    display: inline-block;
+}
+
+.progresso-container .barra-progresso {
+    background-color: var(--cor-progresso);
+    height: 100%;
+    border-radius: 10px;
+}
+
+.projeto-porcentagem {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: var(--cor-texto-secundario);
+    margin-left: 10px;
+    vertical-align: middle;
+}
+
+
+/* ======================================================= */
+/* ESTILO DO MODAL DE PROJETOS (PRESERVADO)                */
+/* ======================================================= */
+
+.modal {
+  display: none; 
+  position: fixed; 
+  z-index: 1001; 
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto; 
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
+  animation: fadeIn 0.3s;
+}
+
+.modal-content {
+  background-color: var(--cor-surface);
+  color: var(--cor-texto-principal);
+  margin: 10% auto; 
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  width: 80%;
+  max-width: 700px; 
+  position: relative;
+  animation: slideIn 0.4s ease-out;
+}
+
+.close-button {
+  color: #aaa;
+  position: absolute;
+  top: 15px;
+  right: 25px;
+  font-size: 28px;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: #ff0000;
+  text-decoration: none;
+  cursor: pointer;
+  transform: scale(1.1);
+}
+
+.modal-content h2 {
+  margin-top: 0;
+  color: #0d2c54;
+}
+
+.modal-progresso {
+  margin-top: 20px;
+}
+
+#modal-tarefas ul {
+    list-style-type: '✅  ';
+    padding-left: 20px;
+}
+
+#modal-tarefas li {
+    margin-bottom: 8px;
+}
+
+/* Animações do Modal */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateY(-50px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Bloqueia scroll quando o modal está aberto */
+body.modal-open {
+    overflow: hidden;
+}
+
+.botao-novidade {
+    position: absolute;
+    top: -10px; /* Um pouco para fora do card */
+    left: 20px;
+    
+    background-color: #e74c3c; /* Vermelho */
+    color: white;
+    
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    
+    z-index: 10;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    
+    /* Por padrão, o botão está escondido */
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* O botão só aparece se o card tiver a classe 'video-novo' */
+.projeto-card-novo.video-novo .botao-novidade {
+    opacity: 1;
+    transform: translateY(0);
+}

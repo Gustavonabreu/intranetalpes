@@ -1,0 +1,37 @@
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: alpes_backend_dev
+    ports:
+      - "3000:3000"  # exponha a porta do seu Node aqui
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    environment:
+      - CORS_ORIGINS=http://localhost:5173
+    networks:
+      - alpes-network
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: alpes_frontend_dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:3000
+      - VITE_LEGACY_API_URL=http://localhost:3000
+    networks:
+      - alpes-network
+    depends_on:
+      - server
+
+networks:
+  alpes-network:
+    driver: bridge

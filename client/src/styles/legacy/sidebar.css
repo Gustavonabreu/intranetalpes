@@ -1,0 +1,146 @@
+.coluna-nav.icon-nav {
+    flex: 0 0 100px;
+    background-color: var(--cor-surface);
+    padding: 20px 0;
+    border-right: 2px solid var(--cor-borda);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+
+.coluna-nav.icon-nav .menu-principal > ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+}
+
+/* Aplica apenas aos botões do menu principal */
+.coluna-nav.icon-nav .menu-principal > ul > li > a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    color: var(--cor-texto-secundario);
+    border-radius: 8px;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+    width: 80px;  
+    height: 80px; 
+    padding: 0;   
+    margin: 0 auto 15px auto; 
+}
+
+.coluna-nav.icon-nav .menu-principal > ul > li > a i {
+    font-size: 24px; 
+    margin-bottom: 8px; 
+}
+
+.coluna-nav.icon-nav .menu-principal > ul > li > a span {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.coluna-nav.icon-nav .menu-principal > ul > li > a:hover {
+    background-color: var(--cor-fundo-hover);
+    color: var(--cor-destaque);
+}
+
+.coluna-nav.icon-nav .menu-principal > ul > li.ativo > a {
+    background-color: var(--cor-destaque);
+    color: var(--cor-texto-invertido);
+}
+
+/* --- SUBMENUS LATERAIS --- */
+.nav-item.has-submenu {
+    position: relative;
+}
+
+.submenu {
+    list-style: none;
+    padding: 6px;
+    margin: 0;
+    position: absolute;
+    left: 95%;
+    top: 50%;
+    min-width: 150px;
+    background-color: var(--cor-surface);
+    border-radius: 8px;
+    box-shadow: 5px 5px 15px rgba(0,0,0,0.1);
+    border: 1px solid var(--cor-borda);
+    opacity: 0;
+    visibility: hidden;
+    transform: translate(10px, -50%);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 1000;
+}
+
+.nav-item.has-submenu:hover > .submenu {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(0, -50%);
+}
+
+.submenu li a {
+    display: block;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--cor-texto-secundario);
+    text-decoration: none;
+    border-radius: 5px;
+    white-space: nowrap;
+    text-align: left;
+}
+
+.submenu li a:hover {
+    background-color: var(--cor-fundo-hover);
+    color: var(--cor-texto-principal);
+}
+
+/* Garante que o ícone de sino possa posicionar o contador */
+#notificacoes-btn {
+    position: relative;
+}
+
+/* O círculo vermelho do contador */
+.notificacao-contador {
+    position: absolute;
+    top: 10px;  /* Ajuste a posição vertical */
+    right: 15px; /* Ajuste a posição horizontal */
+    
+    background-color: #e74c3c; /* Vermelho */
+    color: white;
+    
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    
+    /* Centraliza o número dentro do círculo */
+    display: none; /* Escondido por padrão */
+    align-items: center;
+    justify-content: center;
+    
+    font-size: 11px;
+    font-weight: bold;
+    
+    /* Animação sutil ao aparecer */
+    animation: pulse 1.5s infinite;
+}
+
+/* Animação de "pulso" para chamar a atenção */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+    }
+    70% {
+        transform: scale(1.1);
+        box-shadow: 0 0 0 10px rgba(231, 76, 60, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+    }
+}
