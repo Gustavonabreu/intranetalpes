@@ -40,6 +40,10 @@
 .coluna-nav.icon-nav .menu-principal > ul > li > a span {
     font-size: 12px;
     font-weight: bold;
+    display: block;
+    width: 100%;
+    text-align: center;
+    line-height: 1.2;
 }
 
 .coluna-nav.icon-nav .menu-principal > ul > li > a:hover {

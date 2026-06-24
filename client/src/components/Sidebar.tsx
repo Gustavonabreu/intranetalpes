@@ -1,9 +1,11 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../auth/AuthProvider';
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `nav-link${isActive ? ' ativo' : ''}`;
+const navLinkClass = ({ isActive }: { isActive: boolean }) => `nav-link${isActive ? ' ativo' : ''}`;
 
 export function Sidebar() {
+  const { canAccessRoute, isAdmin } = useAuth();
+
   return (
     <aside className="coluna-nav icon-nav">
       <nav className="menu-principal">
@@ -38,17 +40,10 @@ export function Sidebar() {
           </li>
 
           <li className="nav-item">
-            <NavLink to="/tecnologias" className={navLinkClass}>
-              <i className="fas fa-rocket" />
-              <span>Acessos</span>
+            <NavLink to="/empresa" className={navLinkClass}>
+              <i className="fas fa-newspaper" />
+              <span>Sobre a Empresa</span>
             </NavLink>
-          </li>
-
-          <li className="nav-item">
-            <a href="https://chatwoot.amtechautomatik.com.br/" target="_blank" rel="noreferrer">
-              <i className="fa-regular fa-comment" />
-              <span>Chat</span>
-            </a>
           </li>
 
           <li className="nav-item">
@@ -65,19 +60,25 @@ export function Sidebar() {
             </NavLink>
           </li>
 
-          <li className="nav-item">
-            <NavLink to="/utilitarios/sorteador" className={navLinkClass}>
-              <i className="fa-solid fa-question" />
-              <span>Sorteador</span>
-            </NavLink>
-          </li>
+          {canAccessRoute('/admin/intranet') ? (
+            <li className="nav-item">
+              <NavLink to="/admin/intranet" className={navLinkClass}>
+                <i className="fa-solid fa-gear" />
+                <span>Admin Intranet</span>
+              </NavLink>
+            </li>
+          ) : null}
 
-          <li className="nav-item">
-            <NavLink to="/admin/intranet" className={navLinkClass}>
-              <i className="fa-solid fa-gear" />
-              <span>Admin Intranet</span>
-            </NavLink>
-          </li>
+          {isAdmin ? (
+            <li className="nav-item">
+              <NavLink to="/utilitarios/sorteador" className={navLinkClass}>
+                <i className="fa-solid fa-question" />
+                <span>Sorteador</span>
+              </NavLink>
+            </li>
+          ) : null}
+
+          {/* Tela de acessos (/tecnologias) desativada temporariamente */}
         </ul>
       </nav>
     </aside>

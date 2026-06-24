@@ -10,7 +10,8 @@ services:
       - ./server:/app
       - /app/node_modules
     environment:
-      - CORS_ORIGINS=http://localhost:5173
+      # AQUI: Adicionado o IP da sua rede para liberar o CORS
+      - CORS_ORIGINS=http://localhost:5173,http://192-168-132-88.nip.io:5173
     networks:
       - alpes-network
 
@@ -25,8 +26,9 @@ services:
       - ./client:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:3000
-      - VITE_LEGACY_API_URL=http://localhost:3000
+      # AQUI: Alterado para o IP da rede, assim qualquer máquina acha a API
+      - VITE_API_URL=http://192-168-132-88.nip.io:3000
+      - VITE_LEGACY_API_URL=http://192-168-132-88.nip.io:3000
     networks:
       - alpes-network
     depends_on:

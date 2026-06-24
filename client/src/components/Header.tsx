@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { legacyGetJson } from '../services/legacyApi';
 import { handlePhotoFallback } from '../services/photoFallback';
+import logoAlpes from '../assets/brand/logo-alpes-white.png';
 
 type HeaderProps = {
   title: string;
@@ -70,13 +71,12 @@ export function Header({ title }: HeaderProps) {
   return (
     <header className="header-principal">
       <div className="header-esquerda">
-        <strong>{title}</strong>
       </div>
 
       <div className="header-centro">
         <Link to="/dashboard" className="header-logo">
           <img
-            src="https://dummyimage.com/180x40/0e4699/ffffff&text=GRUPO+ALPES"
+            src={logoAlpes}
             alt="Logo Grupo Alpes"
           />
         </Link>

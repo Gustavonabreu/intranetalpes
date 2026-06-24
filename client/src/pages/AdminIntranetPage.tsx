@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { BarChart2, Briefcase, Image as ImageIcon, Newspaper, X } from 'lucide-react';
+import { BarChart2, CalendarDays, Image as ImageIcon, X } from 'lucide-react';
 import {
   LEGACY_API_BASE_URL,
   LegacyApiError,
@@ -8,7 +8,8 @@ import {
 } from '../services/legacyApi';
 import '../styles/admin-cms.css';
 
-type ModalType = 'imagem' | 'noticias' | 'projetos' | 'enquetes' | null;
+type ModalType = 'imagem' | 'enquetes' | 'eventos' | null;
+type SedeAlvo = 'todas' | 'curitiba' | 'sao_paulo' | 'rio';
 
 type IntranetConfig = {
   id?: number;
@@ -21,21 +22,9 @@ type Noticia = {
   conteudo: string;
   autor_nome?: string | null;
   imagem_destaque_url?: string | null;
+  data_inicio?: string | null;
+  data_fim?: string | null;
   ativo: number;
-};
-
-type Projeto = {
-  id: number;
-  titulo: string;
-  resumo?: string | null;
-  descricao?: string | null;
-  descricao_detalhada?: string | null;
-  imagem_url?: string | null;
-  link_url?: string | null;
-  tipo: 'cliente' | 'projeto';
-  progresso: number;
-  ativo: number;
-  ordem: number;
 };
 
 type EnqueteOpcao = {
@@ -52,8 +41,24 @@ type Enquete = {
   opcoes: EnqueteOpcao[];
 };
 
+type EventoIntranet = {
+  id: number;
+  titulo: string;
+  descricao?: string | null;
+  data_evento: string;
+  sede_alvo?: SedeAlvo;
+  ativo: number;
+};
+
 function asText(value: string | null | undefined) {
   return value || '';
+}
+
+function toDateTimeLocalValue(value: string | null | undefined) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const normalized = raw.replace(' ', 'T');
+  return normalized.length >= 16 ? normalized.slice(0, 16) : normalized;
 }
 
 export function AdminIntranetPage() {
@@ -71,26 +76,22 @@ export function AdminIntranetPage() {
     conteudo: '',
     autor_nome: '',
     imagem_destaque_url: '',
-    ativo: true
-  });
-
-  const [projetos, setProjetos] = useState<Projeto[]>([]);
-  const [novoProjeto, setNovoProjeto] = useState({
-    titulo: '',
-    resumo: '',
-    descricao: '',
-    descricao_detalhada: '',
-    imagem_url: '',
-    link_url: '',
-    tipo: 'cliente' as 'cliente' | 'projeto',
-    progresso: 0,
-    ordem: 0,
+    data_inicio: '',
+    data_fim: '',
     ativo: true
   });
 
   const [enquetes, setEnquetes] = useState<Enquete[]>([]);
   const [novaEnquete, setNovaEnquete] = useState({ pergunta: '', ativo: true });
   const [novaOpcaoPorEnquete, setNovaOpcaoPorEnquete] = useState<Record<number, string>>({});
+  const [eventos, setEventos] = useState<EventoIntranet[]>([]);
+  const [novoEvento, setNovoEvento] = useState({
+    titulo: '',
+    descricao: '',
+    data_evento: '',
+    sede_alvo: 'todas' as SedeAlvo,
+    ativo: true
+  });
 
   const modulos = [
     {
@@ -100,22 +101,16 @@ export function AdminIntranetPage() {
       icon: <ImageIcon size={36} />
     },
     {
-      id: 'noticias' as const,
-      title: 'Noticias',
-      description: 'Gerencie os comunicados e postagens',
-      icon: <Newspaper size={36} />
-    },
-    {
-      id: 'projetos' as const,
-      title: 'Projetos e Clientes',
-      description: 'Cadastre novos projetos ou clientes',
-      icon: <Briefcase size={36} />
-    },
-    {
       id: 'enquetes' as const,
       title: 'Enquetes',
       description: 'Crie ou encerre as enquetes da semana',
       icon: <BarChart2 size={36} />
+    },
+    {
+      id: 'eventos' as const,
+      title: 'Calendario Sidebar',
+      description: 'Cadastre eventos por data e sede',
+      icon: <CalendarDays size={36} />
     }
   ];
 
@@ -123,32 +118,21 @@ export function AdminIntranetPage() {
     setLoading(true);
     setFeedback('');
     try {
-      const [config, news, projects, polls] = await Promise.all([
+      const [config, polls, events] = await Promise.all([
         legacyGetJson<IntranetConfig>('/api/admin/intranet/config'),
-        legacyGetJson<Noticia[]>('/api/admin/intranet/noticias'),
-        legacyGetJson<Projeto[]>('/api/admin/intranet/projetos'),
-        legacyGetJson<Enquete[]>('/api/admin/intranet/enquetes')
+        legacyGetJson<Enquete[]>('/api/admin/intranet/enquetes'),
+        legacyGetJson<EventoIntranet[]>('/api/admin/intranet/eventos')
       ]);
 
       setHeroUrl(resolveMediaUrl(asText(config.imagem_inicial_url)));
-      setNoticias(
-        (news || []).map((item) => ({
-          ...item,
-          imagem_destaque_url: resolveMediaUrl(asText(item.imagem_destaque_url))
-        }))
-      );
-      setProjetos(
-        (projects || []).map((item) => ({
-          ...item,
-          resumo: asText(item.resumo),
-          descricao: asText(item.descricao),
-          descricao_detalhada: asText(item.descricao_detalhada),
-          imagem_url: resolveMediaUrl(asText(item.imagem_url)),
-          link_url: asText(item.link_url),
-          tipo: item.tipo === 'projeto' ? 'projeto' : 'cliente',
-        }))
-      );
       setEnquetes(polls || []);
+      setEventos(
+        (events || []).map((item) => ({
+          ...item,
+          data_evento: toDateTimeLocalValue(item.data_evento),
+          sede_alvo: (item.sede_alvo || 'todas') as SedeAlvo
+        }))
+      );
       setForbidden(false);
     } catch (error) {
       if (error instanceof LegacyApiError && error.status === 403) {
@@ -229,7 +213,15 @@ export function AdminIntranetPage() {
         ...novaNoticia,
         ativo: novaNoticia.ativo
       });
-      setNovaNoticia({ titulo: '', conteudo: '', autor_nome: '', imagem_destaque_url: '', ativo: true });
+      setNovaNoticia({
+        titulo: '',
+        conteudo: '',
+        autor_nome: '',
+        imagem_destaque_url: '',
+        data_inicio: '',
+        data_fim: '',
+        ativo: true
+      });
       await loadAll();
       setFeedback('Noticia criada com sucesso.');
     } catch (error) {
@@ -294,92 +286,6 @@ export function AdminIntranetPage() {
       setFeedback('Noticia removida.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Falha ao excluir noticia.');
-    }
-  }
-
-  async function criarProjeto(event: FormEvent) {
-    event.preventDefault();
-    try {
-      await legacyMutateJson<{ success: boolean }>('POST', '/api/admin/intranet/projetos', {
-        ...novoProjeto,
-        ativo: novoProjeto.ativo
-      });
-      setNovoProjeto({
-        titulo: '',
-        resumo: '',
-        descricao: '',
-        descricao_detalhada: '',
-        imagem_url: '',
-        link_url: '',
-        tipo: 'cliente',
-        progresso: 0,
-        ordem: 0,
-        ativo: true
-      });
-      await loadAll();
-      setFeedback('Projeto criado com sucesso.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao criar projeto.');
-    }
-  }
-
-  async function uploadNovoProjetoImagem(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      setUploading(true);
-      const url = await uploadImageFile(file, 'intranet/projetos');
-      setNovoProjeto((prev) => ({ ...prev, imagem_url: url }));
-      setFeedback('Imagem de projeto/cliente enviada.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao enviar imagem.');
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
-  }
-
-  async function uploadProjetoImagem(
-    projetoId: number,
-    event: ChangeEvent<HTMLInputElement>
-  ) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      setUploading(true);
-      const url = await uploadImageFile(file, 'intranet/projetos');
-      setProjetos((prev) =>
-        prev.map((item) => (item.id === projetoId ? { ...item, imagem_url: url } : item))
-      );
-      setFeedback('Imagem atualizada no item. Clique em "Salvar".');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao enviar imagem.');
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
-  }
-
-  async function salvarProjeto(item: Projeto) {
-    try {
-      await legacyMutateJson<{ success: boolean }>('PUT', `/api/admin/intranet/projetos/${item.id}`, {
-        ...item,
-        ativo: Boolean(item.ativo)
-      });
-      setFeedback('Projeto atualizado.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao atualizar projeto.');
-    }
-  }
-
-  async function excluirProjeto(id: number) {
-    if (!window.confirm('Excluir este projeto?')) return;
-    try {
-      await legacyMutateJson<{ success: boolean }>('DELETE', `/api/admin/intranet/projetos/${id}`);
-      setProjetos((prev) => prev.filter((item) => item.id !== id));
-      setFeedback('Projeto removido.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao excluir projeto.');
     }
   }
 
@@ -471,6 +377,49 @@ export function AdminIntranetPage() {
     }
   }
 
+  async function criarEvento(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await legacyMutateJson<{ success: boolean }>('POST', '/api/admin/intranet/eventos', {
+        ...novoEvento
+      });
+      setNovoEvento({
+        titulo: '',
+        descricao: '',
+        data_evento: '',
+        sede_alvo: 'todas',
+        ativo: true
+      });
+      await loadAll();
+      setFeedback('Evento criado com sucesso.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Falha ao criar evento.');
+    }
+  }
+
+  async function salvarEvento(item: EventoIntranet) {
+    try {
+      await legacyMutateJson<{ success: boolean }>('PUT', `/api/admin/intranet/eventos/${item.id}`, {
+        ...item,
+        ativo: Boolean(item.ativo)
+      });
+      setFeedback('Evento atualizado.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Falha ao atualizar evento.');
+    }
+  }
+
+  async function excluirEvento(id: number) {
+    if (!window.confirm('Excluir este evento?')) return;
+    try {
+      await legacyMutateJson<{ success: boolean }>('DELETE', `/api/admin/intranet/eventos/${id}`);
+      setEventos((prev) => prev.filter((item) => item.id !== id));
+      setFeedback('Evento removido.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Falha ao excluir evento.');
+    }
+  }
+
   function renderImagemContent() {
     return (
       <div className="admin-block">
@@ -497,6 +446,8 @@ export function AdminIntranetPage() {
           <input placeholder="Titulo" value={novaNoticia.titulo} onChange={(e) => setNovaNoticia((p) => ({ ...p, titulo: e.target.value }))} required />
           <input placeholder="Autor" value={novaNoticia.autor_nome} onChange={(e) => setNovaNoticia((p) => ({ ...p, autor_nome: e.target.value }))} />
           <input placeholder="URL da imagem" value={novaNoticia.imagem_destaque_url} onChange={(e) => setNovaNoticia((p) => ({ ...p, imagem_destaque_url: e.target.value }))} />
+          <input placeholder="Inicio de exibicao" type="datetime-local" value={novaNoticia.data_inicio} onChange={(e) => setNovaNoticia((p) => ({ ...p, data_inicio: e.target.value }))} />
+          <input placeholder="Fim de exibicao" type="datetime-local" value={novaNoticia.data_fim} onChange={(e) => setNovaNoticia((p) => ({ ...p, data_fim: e.target.value }))} />
           <input type="file" accept="image/*" onChange={uploadNovaNoticiaImagem} />
           <textarea placeholder="Conteudo" value={novaNoticia.conteudo} onChange={(e) => setNovaNoticia((p) => ({ ...p, conteudo: e.target.value }))} required />
           <label className="check">
@@ -512,6 +463,8 @@ export function AdminIntranetPage() {
             <input value={item.titulo} onChange={(e) => setNoticias((prev) => prev.map((n) => (n.id === item.id ? { ...n, titulo: e.target.value } : n)))} />
             <input value={asText(item.autor_nome)} onChange={(e) => setNoticias((prev) => prev.map((n) => (n.id === item.id ? { ...n, autor_nome: e.target.value } : n)))} />
             <input value={asText(item.imagem_destaque_url)} onChange={(e) => setNoticias((prev) => prev.map((n) => (n.id === item.id ? { ...n, imagem_destaque_url: e.target.value } : n)))} />
+            <input placeholder="Inicio de exibicao" type="datetime-local" value={toDateTimeLocalValue(item.data_inicio)} onChange={(e) => setNoticias((prev) => prev.map((n) => (n.id === item.id ? { ...n, data_inicio: e.target.value } : n)))} />
+            <input placeholder="Fim de exibicao" type="datetime-local" value={toDateTimeLocalValue(item.data_fim)} onChange={(e) => setNoticias((prev) => prev.map((n) => (n.id === item.id ? { ...n, data_fim: e.target.value } : n)))} />
             <input type="file" accept="image/*" onChange={(e) => uploadNoticiaImagem(item.id, e)} />
             <textarea value={item.conteudo} onChange={(e) => setNoticias((prev) => prev.map((n) => (n.id === item.id ? { ...n, conteudo: e.target.value } : n)))} />
             <label className="check">
@@ -521,61 +474,6 @@ export function AdminIntranetPage() {
             <div className="admin-actions">
               <button type="button" onClick={() => salvarNoticia(item)}>Salvar</button>
               <button type="button" className="danger" onClick={() => excluirNoticia(item.id)}>Excluir</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  function renderProjetosContent() {
-    return (
-      <div className="admin-block">
-        <h3>Projetos e clientes</h3>
-        <form onSubmit={criarProjeto} className="admin-form-grid">
-          <input placeholder="Titulo" value={novoProjeto.titulo} onChange={(e) => setNovoProjeto((p) => ({ ...p, titulo: e.target.value }))} required />
-          <select value={novoProjeto.tipo} onChange={(e) => setNovoProjeto((p) => ({ ...p, tipo: (e.target.value === 'projeto' ? 'projeto' : 'cliente') }))}>
-            <option value="cliente">Cliente</option>
-            <option value="projeto">Projeto</option>
-          </select>
-          <input placeholder="URL da imagem" value={novoProjeto.imagem_url} onChange={(e) => setNovoProjeto((p) => ({ ...p, imagem_url: e.target.value }))} />
-          <input type="file" accept="image/*" onChange={uploadNovoProjetoImagem} />
-          <input placeholder="Link (opcional)" value={novoProjeto.link_url} onChange={(e) => setNovoProjeto((p) => ({ ...p, link_url: e.target.value }))} />
-          <input type="number" min={0} max={100} placeholder="Progresso" value={novoProjeto.progresso} onChange={(e) => setNovoProjeto((p) => ({ ...p, progresso: Number(e.target.value) || 0 }))} />
-          <input type="number" min={0} placeholder="Ordem" value={novoProjeto.ordem} onChange={(e) => setNovoProjeto((p) => ({ ...p, ordem: Number(e.target.value) || 0 }))} />
-          <textarea placeholder="Resumo curto" value={novoProjeto.resumo} onChange={(e) => setNovoProjeto((p) => ({ ...p, resumo: e.target.value }))} />
-          <textarea placeholder="Descricao curta" value={novoProjeto.descricao} onChange={(e) => setNovoProjeto((p) => ({ ...p, descricao: e.target.value }))} />
-          <textarea placeholder="Descricao detalhada" value={novoProjeto.descricao_detalhada} onChange={(e) => setNovoProjeto((p) => ({ ...p, descricao_detalhada: e.target.value }))} />
-          <label className="check">
-            <input type="checkbox" checked={novoProjeto.ativo} onChange={(e) => setNovoProjeto((p) => ({ ...p, ativo: e.target.checked }))} />
-            Ativo
-          </label>
-          {uploading ? <small>Enviando imagem...</small> : null}
-          <button type="submit">Salvar projeto</button>
-        </form>
-
-        {projetos.map((item) => (
-          <div className="admin-item" key={item.id}>
-            <input value={item.titulo} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, titulo: e.target.value } : p)))} />
-            <select value={item.tipo} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, tipo: (e.target.value === 'projeto' ? 'projeto' : 'cliente') } : p)))}>
-              <option value="cliente">Cliente</option>
-              <option value="projeto">Projeto</option>
-            </select>
-            <input value={asText(item.imagem_url)} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, imagem_url: e.target.value } : p)))} />
-            <input type="file" accept="image/*" onChange={(e) => uploadProjetoImagem(item.id, e)} />
-            <input value={asText(item.link_url)} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, link_url: e.target.value } : p)))} />
-            <input type="number" min={0} max={100} value={item.progresso} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, progresso: Number(e.target.value) || 0 } : p)))} />
-            <input type="number" min={0} value={item.ordem} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, ordem: Number(e.target.value) || 0 } : p)))} />
-            <textarea value={asText(item.resumo)} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, resumo: e.target.value } : p)))} />
-            <textarea value={asText(item.descricao)} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, descricao: e.target.value } : p)))} />
-            <textarea value={asText(item.descricao_detalhada)} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, descricao_detalhada: e.target.value } : p)))} />
-            <label className="check">
-              <input type="checkbox" checked={Boolean(item.ativo)} onChange={(e) => setProjetos((prev) => prev.map((p) => (p.id === item.id ? { ...p, ativo: e.target.checked ? 1 : 0 } : p)))} />
-              Ativo
-            </label>
-            <div className="admin-actions">
-              <button type="button" onClick={() => salvarProjeto(item)}>Salvar</button>
-              <button type="button" className="danger" onClick={() => excluirProjeto(item.id)}>Excluir</button>
             </div>
           </div>
         ))}
@@ -630,16 +528,135 @@ export function AdminIntranetPage() {
     );
   }
 
+  function renderEventosContent() {
+    return (
+      <div className="admin-block">
+        <h3>Calendario da Sidebar</h3>
+        <form onSubmit={criarEvento} className="admin-form-grid">
+          <input
+            placeholder="Titulo do evento"
+            value={novoEvento.titulo}
+            onChange={(e) => setNovoEvento((p) => ({ ...p, titulo: e.target.value }))}
+            required
+          />
+          <input
+            type="datetime-local"
+            value={novoEvento.data_evento}
+            onChange={(e) => setNovoEvento((p) => ({ ...p, data_evento: e.target.value }))}
+            required
+          />
+          <select
+            value={novoEvento.sede_alvo}
+            onChange={(e) =>
+              setNovoEvento((p) => ({
+                ...p,
+                sede_alvo: e.target.value as SedeAlvo
+              }))
+            }
+          >
+            <option value="todas">Todas as sedes</option>
+            <option value="curitiba">Curitiba</option>
+            <option value="sao_paulo">Sao Paulo</option>
+            <option value="rio">Rio de Janeiro</option>
+          </select>
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={novoEvento.ativo}
+              onChange={(e) => setNovoEvento((p) => ({ ...p, ativo: e.target.checked }))}
+            />
+            Ativo
+          </label>
+          <textarea
+            placeholder="Descricao (opcional)"
+            value={novoEvento.descricao}
+            onChange={(e) => setNovoEvento((p) => ({ ...p, descricao: e.target.value }))}
+          />
+          <button type="submit">Cadastrar evento</button>
+        </form>
+
+        {eventos.map((item) => (
+          <div className="admin-item" key={item.id}>
+            <input
+              value={item.titulo}
+              onChange={(e) =>
+                setEventos((prev) =>
+                  prev.map((ev) => (ev.id === item.id ? { ...ev, titulo: e.target.value } : ev))
+                )
+              }
+            />
+            <input
+              type="datetime-local"
+              value={toDateTimeLocalValue(item.data_evento)}
+              onChange={(e) =>
+                setEventos((prev) =>
+                  prev.map((ev) =>
+                    ev.id === item.id ? { ...ev, data_evento: e.target.value } : ev
+                  )
+                )
+              }
+            />
+            <select
+              value={item.sede_alvo || 'todas'}
+              onChange={(e) =>
+                setEventos((prev) =>
+                  prev.map((ev) =>
+                    ev.id === item.id
+                      ? { ...ev, sede_alvo: e.target.value as SedeAlvo }
+                      : ev
+                  )
+                )
+              }
+            >
+              <option value="todas">Todas as sedes</option>
+              <option value="curitiba">Curitiba</option>
+              <option value="sao_paulo">Sao Paulo</option>
+              <option value="rio">Rio de Janeiro</option>
+            </select>
+            <textarea
+              value={asText(item.descricao)}
+              onChange={(e) =>
+                setEventos((prev) =>
+                  prev.map((ev) => (ev.id === item.id ? { ...ev, descricao: e.target.value } : ev))
+                )
+              }
+            />
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={Boolean(item.ativo)}
+                onChange={(e) =>
+                  setEventos((prev) =>
+                    prev.map((ev) =>
+                      ev.id === item.id ? { ...ev, ativo: e.target.checked ? 1 : 0 } : ev
+                    )
+                  )
+                }
+              />
+              Ativo
+            </label>
+            <div className="admin-actions">
+              <button type="button" onClick={() => salvarEvento(item)}>
+                Salvar
+              </button>
+              <button type="button" className="danger" onClick={() => excluirEvento(item.id)}>
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderModalContent() {
     switch (activeModal) {
       case 'imagem':
         return renderImagemContent();
-      case 'noticias':
-        return renderNoticiasContent();
-      case 'projetos':
-        return renderProjetosContent();
       case 'enquetes':
         return renderEnquetesContent();
+      case 'eventos':
+        return renderEventosContent();
       default:
         return null;
     }

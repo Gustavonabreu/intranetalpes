@@ -6,7 +6,17 @@ interface Equipamento {
   id_glpi: number;
   nome: string;
   fabricante: string;
-  status: string;
+  modelo?: string;
+  serial?: string;
+  patrimonio?: string;
+  last_inventory_update?: string | null;
+}
+
+function formatInventoryDate(value?: string | null) {
+  if (!value) return 'Nao informado';
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return 'Nao informado';
+  return date.toLocaleString('pt-BR');
 }
 
 export default function MeusEquipamentos() {
@@ -90,7 +100,7 @@ export default function MeusEquipamentos() {
 
               <span className="flex items-center space-x-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">
                 <CheckCircle2 size={12} />
-                <span>{item.status || 'Ativo'}</span>
+                <span>Inventariado</span>
               </span>
             </div>
 
@@ -98,6 +108,21 @@ export default function MeusEquipamentos() {
               <h4 className="text-slate-800 font-bold text-lg">{item.nome}</h4>
               <p className="text-slate-500 text-sm mt-1">
                 Fabricante: <span className="font-medium text-slate-700">{item.fabricante || 'Nao informado'}</span>
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                Modelo: <span className="font-medium text-slate-700">{item.modelo || 'Nao informado'}</span>
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                Serie: <span className="font-medium text-slate-700">{item.serial || 'Nao informado'}</span>
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                Patrimonio: <span className="font-medium text-slate-700">{item.patrimonio || 'Nao informado'}</span>
+              </p>
+              <p className="text-slate-500 text-sm mt-1">
+                Ultima atualizacao:{' '}
+                <span className="font-medium text-slate-700">
+                  {formatInventoryDate(item.last_inventory_update)}
+                </span>
               </p>
               <p className="text-slate-400 text-xs mt-3 uppercase tracking-wider">ID GLPI: #{item.id_glpi}</p>
             </div>

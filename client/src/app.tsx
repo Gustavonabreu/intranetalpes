@@ -11,8 +11,9 @@ import { NossaEquipePage } from './pages/NossaEquipePage';
 import { NoticiasPage } from './pages/NoticiasPage';
 import { AdminIntranetPage } from './pages/AdminIntranetPage';
 import { SorteadorPage } from './pages/SorteadorPage';
-import { TecnologiasPage } from './pages/TecnologiasPage';
-import { ProtectedRoute, PublicOnlyRoute } from './routes/RouteGuards';
+import { SobreEmpresa } from './pages/SobreEmpresa';
+import { SemAcessoPage } from './pages/SemAcessoPage';
+import { AdminOnlyRoute, ProtectedRoute, PublicOnlyRoute } from './routes/RouteGuards';
 
 function App() {
   return (
@@ -29,12 +30,19 @@ function App() {
           <Route path="/aniversariantes" element={<AniversariantesPage />} />
           <Route path="/noticias" element={<NoticiasPage />} />
           <Route path="/equipamentos" element={<EquipamentosPage />} />
-          <Route path="/tecnologias" element={<TecnologiasPage />} />
           <Route path="/fala-alpes" element={<FalaAlpesPage />} />
-          <Route path="/ia/chatgpt" element={<ChatgptPage />} />
-          <Route path="/ia/elevenlabs" element={<ElevenLabsPage />} />
-          <Route path="/utilitarios/sorteador" element={<SorteadorPage />} />
+          <Route path="/empresa" element={<SobreEmpresa />} />
+          <Route path="/sem-acesso" element={<SemAcessoPage />} />
           <Route path="/admin/intranet" element={<AdminIntranetPage />} />
+          <Route path="/ia/elevenlabs" element={<ElevenLabsPage />} />
+          <Route path="/ia/chatgpt" element={<ChatgptPage />} />
+          {/* Tela de acessos (/tecnologias) desativada temporariamente */}
+        </Route>
+      </Route>
+
+      <Route element={<AdminOnlyRoute />}>
+        <Route element={<MainLayout />}>
+          <Route path="/utilitarios/sorteador" element={<SorteadorPage />} />
         </Route>
       </Route>
 

@@ -8,6 +8,7 @@ type Funcionario = {
 export function SorteadorPage() {
   const [allNames, setAllNames] = useState<string[]>([]);
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
+  const [nameFilter, setNameFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [premio, setPremio] = useState('');
@@ -53,6 +54,12 @@ export function SorteadorPage() {
     return allNames.length > 0 && selectedNames.length === allNames.length;
   }, [allNames, selectedNames]);
 
+  const visibleNames = useMemo(() => {
+    const filter = nameFilter.trim().toLowerCase();
+    if (!filter) return allNames;
+    return allNames.filter((name) => name.toLowerCase().includes(filter));
+  }, [allNames, nameFilter]);
+
   function toggleName(name: string) {
     setSelectedNames((current) =>
       current.includes(name) ? current.filter((item) => item !== name) : [...current, name]
@@ -61,6 +68,10 @@ export function SorteadorPage() {
 
   function toggleSelectAll() {
     setSelectedNames(allSelected ? [] : allNames);
+  }
+
+  function clearSelection() {
+    setSelectedNames([]);
   }
 
   function startDraw() {
@@ -106,13 +117,45 @@ export function SorteadorPage() {
 
       {!resultVisible ? (
         <div className="sorteador-container">
-          <div id="etapa-selecao">
-            <h3>1. Selecione os Participantes</h3>
+          <div className="sorteador-summary">
+            <div className="summary-card">
+              <small>Total de colaboradores</small>
+              <strong>{allNames.length}</strong>
+            </div>
+            <div className="summary-card">
+              <small>Selecionados</small>
+              <strong>{selectedNames.length}</strong>
+            </div>
+            <div className="summary-card">
+              <small>Prêmio</small>
+              <strong>{premio.trim() ? 'Definido' : 'Pendente'}</strong>
+            </div>
+          </div>
+
+          <div id="etapa-selecao" className="sorteador-step-card">
+            <h3>1. Selecione os participantes</h3>
+            <div className="sorteador-toolbar">
+              <input
+                type="text"
+                className="sorteador-search"
+                placeholder="Buscar participante..."
+                value={nameFilter}
+                onChange={(event) => setNameFilter(event.target.value)}
+              />
+              <div className="sorteador-toolbar-actions">
+                <button id="selecionar-todos-btn" className="btn-secundario" onClick={toggleSelectAll}>
+                  {allSelected ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                </button>
+                <button className="btn-secundario" onClick={clearSelection}>
+                  Limpar
+                </button>
+              </div>
+            </div>
             <div id="lista-funcionarios" className="lista-selecao">
               {loading ? <p>Carregando funcionarios...</p> : null}
               {error ? <p style={{ color: 'red' }}>{error}</p> : null}
               {!loading && !error
-                ? allNames.map((name) => (
+                ? visibleNames.map((name) => (
                     <label className="participante-item" key={name}>
                       <input
                         type="checkbox"
@@ -125,13 +168,10 @@ export function SorteadorPage() {
                   ))
                 : null}
             </div>
-            <button id="selecionar-todos-btn" className="btn-secundario" onClick={toggleSelectAll}>
-              {allSelected ? 'Desmarcar Todos' : 'Selecionar Todos'}
-            </button>
           </div>
 
-          <div id="etapa-premio">
-            <h3>2. Qual e o premio?</h3>
+          <div id="etapa-premio" className="sorteador-step-card">
+            <h3>2. Qual e o prêmio?</h3>
             <input
               type="text"
               id="premio-input"
@@ -141,9 +181,11 @@ export function SorteadorPage() {
             />
           </div>
 
-          <button id="iniciar-sorteio-btn" className="btn-principal" onClick={startDraw}>
-            Sortear Agora!
-          </button>
+          <div className="sorteador-footer-action">
+            <button id="iniciar-sorteio-btn" className="btn-principal" onClick={startDraw}>
+              Sortear Agora!
+            </button>
+          </div>
         </div>
       ) : (
         <div id="resultado-sorteio" className="resultado-container">

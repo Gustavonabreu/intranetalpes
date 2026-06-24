@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import apiRoutes from './routes/api.routes.js';
-import { initGLPISession, killGLPISession } from '../services/glpiService.ts';
 
 // Carrega as variáveis de ambiente
 dotenv.config();
@@ -25,8 +24,12 @@ app.disable('x-powered-by');
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Permite requisições sem Origin (curl, Postman, health checks, etc.)
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Remove barra no final (trailing slash) caso o navegador envie
+      const cleanOrigin = origin ? origin.replace(/\/$/, '') : origin;
+      
+
+      // Permite requisições sem Origin (curl, Postman, etc) ou que estejam na lista
+      if (!cleanOrigin || allowedOrigins.includes(cleanOrigin)) {
         return callback(null, true);
       }
 
@@ -53,21 +56,4 @@ app.get('/api/health', (req, res) => {
 // Inicialização do servidor
 app.listen(port, async () => {
   console.log(`🚀 Backend rodando em http://localhost:${port}`);
-
-  try {
-    console.log('🔄 Testando conexão com GLPI...');
-
-    const token = await initGLPISession();
-
-    if (token) {
-      console.log('✅ Sessão GLPI iniciada com sucesso');
-
-      await killGLPISession(token);
-      console.log('🧹 Sessão GLPI encerrada');
-    } else {
-      console.log('⚠️ Não foi possível obter token do GLPI');
-    }
-  } catch (error) {
-    console.error('❌ Erro ao testar conexão com GLPI:', error);
-  }
 });

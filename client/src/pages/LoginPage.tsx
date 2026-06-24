@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import logoAlpes from '../assets/brand/logo_grupo_preto.png';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -97,7 +98,7 @@ export function LoginPage() {
 
       <div className="imagem-container">
         <img
-          src="https://dummyimage.com/800x300/0e4699/ffffff&text=GRUPO+ALPES"
+          src={logoAlpes}
           alt="Logo Grupo Alpes"
         />
       </div>

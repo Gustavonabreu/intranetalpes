@@ -15,12 +15,14 @@ const routeTitles: Record<string, string> = {
   '/ia/chatgpt': 'ChatGPT',
   '/ia/elevenlabs': 'ElevenLabs',
   '/utilitarios/sorteador': 'Sorteador',
-  '/admin/intranet': 'Admin Intranet'
+  '/admin/intranet': 'Admin Intranet',
+  '/empresa' : 'Empresa'
 };
 
 export function MainLayout() {
   const location = useLocation();
   const title = routeTitles[location.pathname] || 'Intranet';
+  const autoCollapseWidgets = location.pathname === '/nossa-equipe';
 
   return (
     <>
@@ -31,7 +33,7 @@ export function MainLayout() {
         <main className="coluna-conteudo">
           <Outlet />
         </main>
-        <WidgetsSidebar />
+        <WidgetsSidebar autoCollapse={autoCollapseWidgets} />
       </div>
 
       <Footer />

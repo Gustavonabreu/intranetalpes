@@ -12,8 +12,8 @@
 
 /* Importação dos componentes de conteúdo específico */
 @import url('dashboard.css');
-@import url('aniversariantes.css');
 @import url('projetos.css');
+@import url('sorteador.css');
 @import url('chat.css');
 @import url('popup.css');
 
@@ -32,7 +32,6 @@
 /* Importação dos estilos da Barra SideBar */
 @import url('sidebar.css');
 /*Importação dos estilos do HTML Aniversariantes */
-@import url('aniversariantes-page.css');
 /*Importação dos estilos do Equipamentos*/
 @import url('equipamentos.css');
 @import url('theme-switcher.css');

@@ -1,5 +1,31 @@
 /* css/header.css */
+/* --- LAYOUT PRINCIPAL DO HEADER --- */
+.header-principal {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
 
+/* O segredo do alinhamento: flex: 1 faz as laterais ocuparem o mesmo espaço */
+.header-esquerda,
+.header-direita {
+    flex: 1; 
+}
+
+.header-centro {
+    display: flex;
+    justify-content: center;
+    flex: 1;
+}
+
+/* Garante que os itens da direita fiquem empurrados para o canto direito */
+.header-direita {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 20px; 
+}
 /* --- ESTILOS PARA O CONTAINER DA NOTIFICAÇÃO --- */
 .notificacao-container {
     position: relative; /* Essencial para o posicionamento do dropdown */

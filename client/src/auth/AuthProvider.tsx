@@ -6,6 +6,7 @@ type AuthUser = {
   nome_completo?: string;
   imagem_url?: string;
   email?: string;
+  role?: 'admin' | 'user';
 };
 
 type LoginResult = {
@@ -16,6 +17,9 @@ type LoginResult = {
 type AuthContextValue = {
   user: AuthUser | null;
   isAuthenticated: boolean;
+  isAdmin: boolean;
+  permissions: string[];
+  canAccessRoute: (routePath: string) => boolean;
   loading: boolean;
   refreshUser: () => Promise<void>;
   login: (email: string, password: string) => Promise<LoginResult>;
@@ -50,6 +54,7 @@ type AuthProviderProps = {
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function refreshUser() {
@@ -60,13 +65,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (!response.ok) {
         setUser(null);
+        setPermissions([]);
         return;
       }
 
       const userData = (await response.json()) as AuthUser;
       setUser(userData);
+
+      const permissionResponse = await fetch(`${LEGACY_API_BASE_URL}/api/minhas-permissoes/`, {
+        credentials: 'include'
+      });
+
+      if (permissionResponse.ok) {
+        const permissionData = (await permissionResponse.json()) as {
+          admin?: boolean;
+          permissoes?: string[];
+        };
+        setPermissions(permissionData.permissoes || []);
+      } else {
+        setPermissions([]);
+      }
     } catch {
       setUser(null);
+      setPermissions([]);
     }
   }
 
@@ -112,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // noop
     } finally {
       setUser(null);
+      setPermissions([]);
     }
   }
 
@@ -128,17 +150,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, []);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
+  const value = useMemo<AuthContextValue>(() => {
+    const isAdmin = user?.role === 'admin';
+
+    return {
       user,
       isAuthenticated: Boolean(user),
+      isAdmin,
+      permissions,
+      canAccessRoute: (routePath: string) => {
+        if (!user) return false;
+        if (isAdmin) return true;
+        const normalized = routePath.split('?')[0];
+        return permissions.some(
+          (allowedRoute) =>
+            normalized === allowedRoute || normalized.startsWith(`${allowedRoute}/`)
+        );
+      },
       loading,
       refreshUser,
       login,
       logout
-    }),
-    [user, loading]
-  );
+    };
+  }, [user, permissions, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

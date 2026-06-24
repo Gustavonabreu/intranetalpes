@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import clientesMapImage from '../assets/brand/clientes-map.png';
-import { LEGACY_API_BASE_URL, legacyGetJson } from '../services/legacyApi';
+import defaultHeroImage from '../assets/brand/inicio_padrao.webp';
+import { LEGACY_API_BASE_URL, LegacyApiError, legacyGetJson } from '../services/legacyApi';
 
 type CalendarEvent = {
   summary?: string;
@@ -41,14 +42,54 @@ type Project = {
   ordem?: number;
 };
 
+type ParsedCalendarEvent = {
+  id: string;
+  title: string;
+  date: Date;
+  dateKey: string;
+  timeLabel: string;
+};
+
+function toDateKey(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function parseCalendarEvent(event: CalendarEvent, index: number): ParsedCalendarEvent | null {
+  const rawStart = event.start?.dateTime || event.start?.date;
+  if (!rawStart) return null;
+  const date = new Date(rawStart);
+  if (!Number.isFinite(date.getTime())) return null;
+
+  const isAllDay = Boolean(event.start?.date && !event.start?.dateTime);
+  const timeLabel = isAllDay
+    ? 'Dia inteiro'
+    : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  return {
+    id: `${event.summary || 'evento'}-${index}-${rawStart}`,
+    title: event.summary?.trim() || 'Evento sem titulo',
+    date,
+    dateKey: toDateKey(date),
+    timeLabel
+  };
+}
+
 export function DashboardPage() {
   const [userName, setUserName] = useState('Usuario');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const [calendarNeedsConnect, setCalendarNeedsConnect] = useState(false);
+  const [calendarMessage, setCalendarMessage] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
-  const [heroImage, setHeroImage] = useState(
-    'https://dummyimage.com/1600x900/0f172a/ffffff&text=Intranet+Alpes'
-  );
+  const [currentAvisoIndex, setCurrentAvisoIndex] = useState(0);
+  const [heroImage, setHeroImage] = useState(defaultHeroImage);
 
   function resolveMediaUrl(url: string) {
     if (!url) return '';
@@ -59,6 +100,12 @@ export function DashboardPage() {
 
   useEffect(() => {
     let mounted = true;
+    const calendarStatus = new URLSearchParams(window.location.search).get('calendar');
+    if (calendarStatus === 'connected') {
+      setCalendarMessage('Calendario conectado com sucesso.');
+    } else if (calendarStatus === 'error') {
+      setCalendarMessage('Nao foi possivel conectar ao Google Calendar.');
+    }
 
     async function loadDashboardData() {
       try {
@@ -69,10 +116,26 @@ export function DashboardPage() {
       } catch {}
 
       try {
-        const eventsData = await legacyGetJson<CalendarEvent[]>('/api/calendar/events/');
-        if (mounted) setEvents(eventsData || []);
-      } catch {
-        if (mounted) setEvents([]);
+        const eventsData = await legacyGetJson<CalendarEvent[]>(
+          `/api/calendar/events/?t=${Date.now()}`
+        );
+        if (mounted) {
+          setEvents(eventsData || []);
+          setCalendarNeedsConnect(false);
+        }
+      } catch (error) {
+        if (!mounted) return;
+        setEvents([]);
+        if (error instanceof LegacyApiError) {
+          const msg = (error.message || '').toLowerCase();
+          const needsConnect = error.status === 403 && msg.includes('google calendar');
+          setCalendarNeedsConnect(needsConnect);
+          if (error.status === 503) {
+            setCalendarMessage('Google Calendar nao configurado no backend.');
+          } else if (needsConnect && !calendarStatus) {
+            setCalendarMessage('Conecte sua conta Google para carregar seus eventos.');
+          }
+        }
       }
 
       try {
@@ -113,7 +176,81 @@ export function DashboardPage() {
     };
   }, []);
 
-  const nextEvents = useMemo(() => events.slice(0, 4), [events]);
+  useEffect(() => {
+    if (avisos.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setCurrentAvisoIndex((prev) => (prev + 1) % avisos.length);
+    }, 9000);
+    return () => window.clearInterval(timer);
+  }, [avisos.length]);
+
+  function goToPreviousAviso() {
+    setCurrentAvisoIndex((prev) => {
+      if (avisos.length <= 0) return 0;
+      return (prev - 1 + avisos.length) % avisos.length;
+    });
+  }
+
+  function goToNextAviso() {
+    setCurrentAvisoIndex((prev) => {
+      if (avisos.length <= 0) return 0;
+      return (prev + 1) % avisos.length;
+    });
+  }
+
+  const parsedEvents = useMemo(() => {
+    return events
+      .map((event, index) => parseCalendarEvent(event, index))
+      .filter((item): item is ParsedCalendarEvent => item !== null)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [events]);
+
+  const nextEvents = useMemo(() => parsedEvents.slice(0, 4), [parsedEvents]);
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, ParsedCalendarEvent[]>();
+    for (const event of parsedEvents) {
+      if (!map.has(event.dateKey)) map.set(event.dateKey, []);
+      map.get(event.dateKey)!.push(event);
+    }
+    return map;
+  }, [parsedEvents]);
+
+  const monthLabel = useMemo(
+    () =>
+      currentMonth.toLocaleDateString('pt-BR', {
+        month: 'long',
+        year: 'numeric'
+      }),
+    [currentMonth]
+  );
+
+  const calendarCells = useMemo(() => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const leading = firstDay.getDay();
+    const cells: Array<{ date: Date; inCurrentMonth: boolean }> = [];
+
+    for (let i = 0; i < leading; i += 1) {
+      const date = new Date(year, month, i - leading + 1);
+      cells.push({ date, inCurrentMonth: false });
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      cells.push({ date: new Date(year, month, day), inCurrentMonth: true });
+    }
+
+    while (cells.length % 7 !== 0) {
+      const date = new Date(year, month, daysInMonth + (cells.length % 7) + 1);
+      cells.push({ date, inCurrentMonth: false });
+    }
+
+    return cells;
+  }, [currentMonth]);
+
+  const todayKey = toDateKey(new Date());
 
   return (
     <>
@@ -128,16 +265,99 @@ export function DashboardPage() {
 
       <div className="agenda-container">
         <div className="calendario-principal">
-          <h3>Calendario</h3>
+          <div className="calendar-header">
+            <h3>Calendario</h3>
+            {!calendarNeedsConnect && (
+              <div className="calendar-month-nav">
+                <button
+                  type="button"
+                  className="calendar-nav-btn"
+                  onClick={() =>
+                    setCurrentMonth(
+                      (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                    )
+                  }
+                >
+                  {'<'}
+                </button>
+                <span className="calendar-month-label">{monthLabel}</span>
+                <button
+                  type="button"
+                  className="calendar-nav-btn"
+                  onClick={() =>
+                    setCurrentMonth(
+                      (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                    )
+                  }
+                >
+                  {'>'}
+                </button>
+              </div>
+            )}
+          </div>
           <div id="meu-calendario-container">
-            {events.length > 0 ? (
-              <ul className="lista-eventos-calendario">
-                {events.map((event, index) => (
-                  <li key={`${event.summary}-${index}`}>{event.summary || 'Evento sem titulo'}</li>
-                ))}
-              </ul>
+            {calendarNeedsConnect ? (
+              <div className="conectar-calendario">
+                <p>{calendarMessage || 'Conecte sua conta Google para ver seus eventos.'}</p>
+                <button
+                  id="btn-conectar-google"
+                  type="button"
+                  onClick={() => {
+                    window.location.href = `${LEGACY_API_BASE_URL}/api/calendar/connect/`;
+                  }}
+                >
+                  Conectar com Google
+                </button>
+              </div>
+            ) : parsedEvents.length > 0 ? (
+              <div className="calendar-grid-wrap">
+                <div className="calendar-weekdays">
+                  <span>Dom</span>
+                  <span>Seg</span>
+                  <span>Ter</span>
+                  <span>Qua</span>
+                  <span>Qui</span>
+                  <span>Sex</span>
+                  <span>Sab</span>
+                </div>
+                <div className="calendar-grid">
+                  {calendarCells.map((cell) => {
+                    const key = toDateKey(cell.date);
+                    const dayEvents = eventsByDate.get(key) || [];
+                    const visibleEvents = dayEvents.slice(0, 2);
+                    const isToday = key === todayKey;
+
+                    return (
+                      <div
+                        key={`${key}-${cell.inCurrentMonth ? 'in' : 'out'}`}
+                        className={`calendar-day-cell ${cell.inCurrentMonth ? '' : 'is-out-month'} ${
+                          isToday ? 'is-today' : ''
+                        }`}
+                      >
+                        <div className="calendar-day-number">{cell.date.getDate()}</div>
+                        <div className="calendar-day-events">
+                          {visibleEvents.map((evt) => (
+                            <div
+                              key={evt.id}
+                              className="calendar-event-chip"
+                              title={`${evt.timeLabel} - ${evt.title}`}
+                            >
+                              <span className="calendar-event-time">{evt.timeLabel}</span> {evt.title}
+                            </div>
+                          ))}
+                          {dayEvents.length > visibleEvents.length && (
+                            <div className="calendar-event-more">
+                              +{dayEvents.length - visibleEvents.length} mais
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
-              <p>Sem eventos carregados no momento.</p>
+              <p>{calendarMessage || 'Sem eventos carregados no momento.'}</p>
             )}
           </div>
         </div>
@@ -149,17 +369,15 @@ export function DashboardPage() {
               nextEvents.map((event, index) => (
                 <div className="evento-item" key={`next-${index}`}>
                   <div className="evento-data">
-                    <div className="dia">
-                      {new Date(event.start?.dateTime || event.start?.date || Date.now()).getDate()}
-                    </div>
+                    <div className="dia">{event.date.getDate()}</div>
                     <div className="mes">
-                      {new Date(
-                        event.start?.dateTime || event.start?.date || Date.now()
-                      ).toLocaleString('pt-BR', { month: 'short' })}
+                      {event.date.toLocaleString('pt-BR', { month: 'short' })}
                     </div>
                   </div>
                   <div className="evento-borda" />
-                  <p className="evento-titulo">{event.summary || 'Evento sem titulo'}</p>
+                  <p className="evento-titulo">
+                    <span style={{ fontWeight: 700 }}>{event.timeLabel}</span> - {event.title}
+                  </p>
                 </div>
               ))
             ) : (
@@ -202,25 +420,61 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div className="swiper my-swiper-avisos">
-          <div className="swiper-wrapper">
-            {avisos.length > 0 ? (
-              avisos.map((aviso, index) => (
-                <div className="swiper-slide" key={aviso.id || index}>
-                  <a href={aviso.link || '#'} target="_blank" rel="noreferrer">
-                    <img
-                      src={aviso.imagem_url || 'https://via.placeholder.com/900x300'}
-                      alt={aviso.titulo || `Aviso ${index + 1}`}
-                    />
-                  </a>
-                </div>
-              ))
-            ) : (
-              <div className="swiper-slide">
-                <p>Carregando avisos...</p>
-              </div>
-            )}
-          </div>
+        <div className="my-swiper-avisos">
+          {avisos.length > 0 ? (
+            <>
+              <a
+                className="comunicados-slide"
+                href={avisos[currentAvisoIndex]?.link || '#'}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <img
+                  className="comunicados-img"
+                  src={
+                    avisos[currentAvisoIndex]?.imagem_url || 'https://via.placeholder.com/900x300'
+                  }
+                  alt={avisos[currentAvisoIndex]?.titulo || `Aviso ${currentAvisoIndex + 1}`}
+                />
+              </a>
+
+              {avisos.length > 1 ? (
+                <>
+                  <button
+                    type="button"
+                    className="comunicados-nav comunicados-nav-prev"
+                    onClick={goToPreviousAviso}
+                    aria-label="Comunicado anterior"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="comunicados-nav comunicados-nav-next"
+                    onClick={goToNextAviso}
+                    aria-label="Próximo comunicado"
+                  >
+                    ›
+                  </button>
+                  <div className="comunicados-dots">
+                    {avisos.map((_, index) => (
+                      <button
+                        key={`aviso-dot-${index}`}
+                        type="button"
+                        className={`comunicados-dot ${index === currentAvisoIndex ? 'ativo' : ''}`}
+                        onClick={() => setCurrentAvisoIndex(index)}
+                        aria-label={`Ir para comunicado ${index + 1}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <div className="comunicados-slide">
+              <p>Carregando avisos...</p>
+            </div>
+          )}
         </div>
       </section>
 
