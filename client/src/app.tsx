@@ -11,7 +11,7 @@ import { NossaEquipePage } from './pages/NossaEquipePage';
 import { NoticiasPage } from './pages/NoticiasPage';
 import { AdminIntranetPage } from './pages/AdminIntranetPage';
 import { SorteadorPage } from './pages/SorteadorPage';
-import { SobreEmpresa } from './pages/SobreEmpresa';
+import  SobreEmpresa  from './pages/SobreEmpresa';
 import { SemAcessoPage } from './pages/SemAcessoPage';
 import { AdminOnlyRoute, ProtectedRoute, PublicOnlyRoute } from './routes/RouteGuards';
 

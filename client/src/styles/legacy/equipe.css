@@ -79,16 +79,17 @@
   background: #fff;
   border-radius: 999px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.4);
-  height: 145px;
+  height: 200px;
   margin: 0 auto 10px;
   overflow: hidden;
-  width: 145px;
+  width: 200px;
 }
 
 .profile-pic-front img {
   height: 100%;
-  object-fit: cover;
   width: 100%;
+  object-fit: cover;
+  object-position: center 10%; 
 }
 
 .profile-name-front {

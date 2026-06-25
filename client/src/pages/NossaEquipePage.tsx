@@ -7,7 +7,6 @@ import mountainImage from '../assets/brand/montanha.png';
 type Funcionario = {
   id?: number;
   nome_formatado?: string;
-  grupo?: string;
   email?: string;
   telefone?: string;
   imagem_url?: string;
@@ -103,7 +102,6 @@ export function NossaEquipePage() {
                       </div>
 
                       <h3 className="profile-name-front">{name}</h3>
-                      <p className="profile-sector-front">{func.grupo || 'TECNOLOGIA'}</p>
                     </div>
 
                     <div className="card-interaction-equipe">
@@ -123,16 +121,6 @@ export function NossaEquipePage() {
                             <span>{func.email}</span>
                           </div>
                         ) : null}
-
-                        <div className="contact-item-equipe">
-                          <i className="fas fa-map-marker-alt" />
-                          <span>Rua Inacio Lustosa, 1000, Curitiba - PR</span>
-                        </div>
-
-                        <div className="contact-item-equipe">
-                          <i className="fas fa-globe" />
-                          <span>alpesmidia.com.br</span>
-                        </div>
 
                         {(phone || func.email) && contactUrl !== '#' ? (
                           <a

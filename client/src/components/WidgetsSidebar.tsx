@@ -51,7 +51,12 @@ function getDisplayName(fullName?: string) {
 
   if (parts.length === 0) return 'Colaborador';
   if (parts.length === 1) return parts[0];
-  return `${parts[0]} ${parts[1]}`;
+  
+  // Pega no primeiro e no ÚLTIMO nome do array
+  const primeiroNome = parts[0];
+  const ultimoNome = parts[parts.length - 1];
+
+  return `${primeiroNome} ${ultimoNome}`;
 }
 
 function getBirthMonth(value?: string | null) {
@@ -244,7 +249,14 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
 
       <div className="widgets-content">
         <div className="widget">
-          <h3>Aniversariantes do Mês</h3>
+          <h3>
+            <Link
+              to="/aniversariantes"
+              className="no-underline text-inherit cursos-pointer hover:opacity-80 transition-opacity"
+            >
+              Aniversariantes do Mês
+            </Link>
+          </h3>
           {aniversariantes.length > 0 ? (
             <ul className="space-y-3 mt-3">
               {aniversariantes.map((item, index) => {
@@ -254,7 +266,7 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
                     <img
                       src={item.imagem_url || 'https://dummyimage.com/40x40/cccccc/333333&text=U'}
                       alt={`Foto de ${name}`}
-                      className="w-9 h-9 rounded-full object-cover border border-gray-600 flex-shrink-0"
+                      className="w-12 h-12 rounded-full object-cover border border-gray-600 flex-shrink-0"
                       onError={(event) =>
                         handlePhotoFallback(
                           event,
@@ -280,7 +292,7 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
                 <li key={post.id || post.titulo} className="py-0.5">
                   <Link
                     to="/noticias"
-                    className="text-black hover:text-gray-700 hover:underline text-sm font-medium block truncate transition-colors"
+                    className="text-black hover:text-gray-700 text-sm font-medium block truncate transition-colors"
                   >
                     {post.titulo || 'Post sem titulo'}
                   </Link>
@@ -289,25 +301,6 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
             </ul>
           ) : (
             <p>Nenhum post recente encontrado.</p>
-          )}
-        </div>
-
-        <div className="widget">
-          <h3>Enquete da Semana</h3>
-          {enquete?.id ? (
-            <>
-              <p>{enquete.pergunta || 'Pergunta sem texto'}</p>
-              <ul>
-                {(enquete.opcoes || []).map((opcao) => (
-                  <li key={opcao.id || opcao.texto_opcao}>
-                    {opcao.texto_opcao || 'Opcao'} ({opcao.votos || 0})
-                  </li>
-                ))}
-              </ul>
-              <small>Total de votos: {totalVotos}</small>
-            </>
-          ) : (
-            <p>Nenhuma enquete ativa.</p>
           )}
         </div>
 
