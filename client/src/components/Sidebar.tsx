@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import  iconeFalaAlpes  from '../assets/brand/falaalpes.png';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) => `nav-link${isActive ? ' ativo' : ''}`;
 
@@ -52,10 +53,21 @@ export function Sidebar() {
               <span>Equipamentos</span>
             </NavLink>
           </li>
-
+          
           <li className="nav-item">
             <NavLink to="/fala-alpes" className={navLinkClass}>
-              <i className="fa-solid fa-head-side-virus" />
+              <img 
+                src={iconeFalaAlpes} 
+                alt="Fala Alpes" // Importante para acessibilidade
+                style={{ 
+                  width: '30px',  // Tamanho proporcional aos outros ícones
+                  height: '30px', 
+                  display: 'block', // Muda para bloco para ocupar a largura total
+                  margin: '0 auto 5px auto', // Centraliza e dá um espaço pro texto
+                  // Se precisar forçar a cor cinza:
+                  // filter: 'brightness(0) invert(0.5)'
+                }}
+              />
               <span>Fala Alpes</span>
             </NavLink>
           </li>

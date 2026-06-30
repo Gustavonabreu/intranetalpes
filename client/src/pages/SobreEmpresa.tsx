@@ -135,7 +135,6 @@ export default function SobreEmpresa() {
           </p>
         </motion.div>
       </section>
-      
     </div>
   );
 }
