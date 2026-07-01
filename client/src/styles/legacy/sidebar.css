@@ -18,6 +18,7 @@
 
 /* Aplica apenas aos botões do menu principal */
 .coluna-nav.icon-nav .menu-principal > ul > li > a {
+    position: relative; /* Ancora o indicador de novidade */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -26,10 +27,40 @@
     color: var(--cor-texto-secundario);
     border-radius: 8px;
     transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
-    width: 80px;  
-    height: 80px; 
-    padding: 0;   
-    margin: 0 auto 15px auto; 
+    width: 80px;
+    height: 80px;
+    padding: 0;
+    margin: 0 auto 15px auto;
+}
+
+/* Indicador de "visualização pendente" na sidebar.
+   O seletor precisa ser específico para vencer a regra
+   `... > a span { width:100%; display:block }` do base.css,
+   que deixava a bolinha esticada. */
+.coluna-nav.icon-nav .menu-principal > ul > li > a span.nav-badge-dot {
+    position: absolute;
+    top: 11px;
+    right: 21px;
+    display: block;
+    width: 10px;
+    height: 10px;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    background-color: #e74c3c;
+    border: 2px solid var(--cor-surface);
+    border-radius: 50%;
+    line-height: 0;
+    text-align: initial;
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+    animation: pulse 1.6s infinite;
+    pointer-events: none;
+}
+
+.coluna-nav.icon-nav .menu-principal > ul > li.ativo > a span.nav-badge-dot,
+.coluna-nav.icon-nav .menu-principal > ul > li > a:hover span.nav-badge-dot {
+    border-color: var(--cor-destaque);
 }
 
 .coluna-nav.icon-nav .menu-principal > ul > li > a i {

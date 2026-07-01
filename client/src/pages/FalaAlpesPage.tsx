@@ -1,4 +1,13 @@
+import { useEffect } from 'react';
+import { useNotifications } from '../notifications/NotificationsProvider';
+
 export function FalaAlpesPage() {
+  const { markSectionSeen } = useNotifications();
+
+  useEffect(() => {
+    markSectionSeen('falaAlpes');
+  }, [markSectionSeen]);
+
   return (
     <section className="section_notificacoes">
       <div className="content_wrap dashboard_hero">

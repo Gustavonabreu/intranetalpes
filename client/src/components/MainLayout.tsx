@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom';
+import { NotificationsProvider } from '../notifications/NotificationsProvider';
 import { Footer } from './Footer';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -25,7 +26,7 @@ export function MainLayout() {
   const autoCollapseWidgets = location.pathname === '/nossa-equipe';
 
   return (
-    <>
+    <NotificationsProvider>
       <Header title={title} />
 
       <div className="intranet-container">
@@ -37,6 +38,6 @@ export function MainLayout() {
       </div>
 
       <Footer />
-    </>
+    </NotificationsProvider>
   );
 }

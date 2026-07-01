@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthProvider';
+import { useNotifications } from '../notifications/NotificationsProvider';
 import {
   LEGACY_API_BASE_URL,
   legacyGetJson,
@@ -17,9 +18,6 @@ type Noticia = {
   data_inicio?: string | null;
   data_fim?: string | null;
   ativo?: number;
-  noticia_nova_info?: {
-    id?: number;
-  };
 };
 
 type NovaNoticia = {
@@ -32,25 +30,13 @@ type NovaNoticia = {
   ativo: boolean;
 };
 
-function getCsrfToken(name: string) {
-  if (!document.cookie) return null;
-  const cookies = document.cookie.split(';');
-  for (const rawCookie of cookies) {
-    const cookie = rawCookie.trim();
-    if (cookie.startsWith(`${name}=`)) {
-      return decodeURIComponent(cookie.substring(name.length + 1));
-    }
-  }
-  return null;
-}
-
 export function NoticiasPage() {
   const { isAdmin, user } = useAuth();
+  const { isRead, markAsRead, reload: reloadNotificacoes } = useNotifications();
   const [noticias, setNoticias] = useState<Noticia[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedNoticia, setSelectedNoticia] = useState<Noticia | null>(null);
-  const [readNewIds, setReadNewIds] = useState<Record<number, boolean>>({});
   const [adminFeedback, setAdminFeedback] = useState('');
   const [uploading, setUploading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -115,21 +101,6 @@ export function NoticiasPage() {
     };
   }, []);
 
-  async function markNotificationAsRead(notificationId?: number) {
-    if (!notificationId) return;
-    const csrfToken = getCsrfToken('csrftoken');
-
-    try {
-      await fetch(`${LEGACY_API_BASE_URL}/api/notificacoes/${notificationId}/ler/`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: csrfToken ? { 'X-CSRFToken': csrfToken } : undefined
-      });
-    } catch {}
-
-    setReadNewIds((current) => ({ ...current, [notificationId]: true }));
-  }
-
   async function fileToDataUrl(file: File) {
     return new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -161,6 +132,8 @@ export function NoticiasPage() {
         imagem_destaque_url: resolveMediaUrl(item.imagem_destaque_url)
       }))
     );
+    // Mantem o sino e a sidebar sincronizados apos alteracoes de admin.
+    reloadNotificacoes();
   }
 
   async function criarNoticia(event: FormEvent) {
@@ -270,7 +243,7 @@ export function NoticiasPage() {
 
   function openNoticiaModal(noticia: Noticia) {
     setSelectedNoticia(noticia);
-    markNotificationAsRead(noticia.noticia_nova_info?.id);
+    if (noticia.id) markAsRead(noticia.id);
     document.body.classList.add('modal-open');
   }
 
@@ -375,8 +348,7 @@ export function NoticiasPage() {
               const publishedDate = noticia.data_publicacao
                 ? new Date(noticia.data_publicacao).toLocaleDateString('pt-BR')
                 : '--/--/----';
-              const notificationId = noticia.noticia_nova_info?.id;
-              const isNew = Boolean(notificationId && !readNewIds[notificationId]);
+              const isNew = Boolean(noticia.id && !isRead(noticia.id));
 
               return (
                 <article

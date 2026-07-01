@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { legacyGetJson } from '../services/legacyApi';
+import { useNotifications } from '../notifications/NotificationsProvider';
 import { handlePhotoFallback } from '../services/photoFallback';
 import logoAlpes from '../assets/brand/logo-alpes-white.png';
 
@@ -9,12 +9,20 @@ type HeaderProps = {
   title: string;
 };
 
+function formatNotificationDate(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 export function Header({ title }: HeaderProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { noticias, unreadCount, isRead, markAsRead, markAllAsRead } = useNotifications();
   const [darkMode, setDarkMode] = useState(false);
-  const [notificationsCount, setNotificationsCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const userName = user?.nome_completo || 'Usuario';
   const userAvatar = user?.imagem_url || 'https://dummyimage.com/40x40/cccccc/333333&text=U';
@@ -31,37 +39,22 @@ export function Header({ title }: HeaderProps) {
   }, [darkMode]);
 
   useEffect(() => {
-    let mounted = true;
-
-    async function loadHeaderData() {
-      try {
-        const data = await legacyGetJson<{ notificacoes?: Array<{ id: number }> }>(
-          '/api/notificacoes/'
-        );
-        if (!mounted) return;
-        setNotificationsCount(data.notificacoes?.length || 0);
-      } catch {
-        if (!mounted) return;
-        setNotificationsCount(0);
-      }
-    }
-
-    loadHeaderData();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    function closeMenu() {
+    function closeOverlays() {
       setMenuOpen(false);
+      setNotifOpen(false);
     }
 
-    window.addEventListener('click', closeMenu);
+    window.addEventListener('click', closeOverlays);
     return () => {
-      window.removeEventListener('click', closeMenu);
+      window.removeEventListener('click', closeOverlays);
     };
   }, []);
+
+  function openNotificacao(id: number) {
+    markAsRead(id);
+    setNotifOpen(false);
+    navigate('/noticias');
+  }
 
   async function handleLogout() {
     await logout();
@@ -119,13 +112,72 @@ export function Header({ title }: HeaderProps) {
           </div>
         </div>
 
-        <div className="notificacao-container">
-          <button className="header-btn" type="button" aria-label="Notificacoes">
+        <div className="notificacao-container" onClick={(event) => event.stopPropagation()}>
+          <button
+            className="header-btn"
+            type="button"
+            aria-label="Notificacoes"
+            onClick={() => setNotifOpen((current) => !current)}
+          >
             <i className="fas fa-bell" />
-            {notificationsCount > 0 ? (
-              <span className="notificacao-contador">{notificationsCount}</span>
+            {unreadCount > 0 ? (
+              <span className="notificacao-contador" style={{ display: 'flex' }}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
             ) : null}
           </button>
+
+          <div className={`notificacoes-dropdown ${notifOpen ? 'visivel' : ''}`}>
+            <div className="notificacoes-dropdown-head">
+              <strong>Notificacoes</strong>
+              {unreadCount > 0 ? (
+                <button type="button" className="notif-marcar-todas" onClick={markAllAsRead}>
+                  Marcar todas como lidas
+                </button>
+              ) : null}
+            </div>
+
+            <div className="notificacoes-lista">
+              {noticias.length === 0 ? (
+                <div className="notificacao-item notificacao-vazia">
+                  Nenhuma noticia no momento.
+                </div>
+              ) : (
+                noticias.map((noticia) => {
+                  const unread = !isRead(noticia.id);
+                  return (
+                    <div
+                      key={noticia.id}
+                      className={`notificacao-item ${unread ? 'nao-lida' : ''}`}
+                      onClick={() => openNotificacao(noticia.id)}
+                    >
+                      <div className="notificacao-item-titulo">
+                        {unread ? <span className="notif-dot" /> : null}
+                        <span>{noticia.titulo}</span>
+                      </div>
+                      <div className="notificacao-item-meta">
+                        <span>{formatNotificationDate(noticia.data_publicacao)}</span>
+                        {unread ? (
+                          <button
+                            type="button"
+                            className="notif-ler-btn"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              markAsRead(noticia.id);
+                            }}
+                          >
+                            Marcar como lida
+                          </button>
+                        ) : (
+                          <span className="notif-lida-tag">Lida</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
 
         <label className="switch" aria-label="Alternar tema">

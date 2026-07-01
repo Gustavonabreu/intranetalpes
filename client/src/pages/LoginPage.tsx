@@ -19,8 +19,14 @@ export function LoginPage() {
 
   useEffect(() => {
     document.body.classList.add('login-page');
+    // A tela de login e sempre no tema claro, independente da preferencia salva.
+    document.body.classList.remove('dark-mode');
     return () => {
       document.body.classList.remove('login-page');
+      // Ao sair do login, restaura o tema salvo pelo usuario.
+      if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark-mode');
+      }
     };
   }, []);
 

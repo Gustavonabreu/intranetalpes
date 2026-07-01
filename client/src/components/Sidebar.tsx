@@ -1,11 +1,13 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
+import { useNotifications } from '../notifications/NotificationsProvider';
 import  iconeFalaAlpes  from '../assets/brand/falaalpes.png';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) => `nav-link${isActive ? ' ativo' : ''}`;
 
 export function Sidebar() {
   const { canAccessRoute, isAdmin } = useAuth();
+  const { pending } = useNotifications();
 
   return (
     <aside className="coluna-nav icon-nav">
@@ -35,6 +37,9 @@ export function Sidebar() {
 
           <li className="nav-item">
             <NavLink to="/noticias" className={navLinkClass}>
+              {pending.noticias ? (
+                <span className="nav-badge-dot" aria-label="Novidades em Noticias" />
+              ) : null}
               <i className="fas fa-newspaper" />
               <span>Noticias</span>
             </NavLink>
@@ -42,6 +47,9 @@ export function Sidebar() {
 
           <li className="nav-item">
             <NavLink to="/empresa" className={navLinkClass}>
+              {pending.empresa ? (
+                <span className="nav-badge-dot" aria-label="Novidades em Sobre a Empresa" />
+              ) : null}
               <i className="fas fa-newspaper" />
               <span>Sobre a Empresa</span>
             </NavLink>
@@ -56,8 +64,11 @@ export function Sidebar() {
           
           <li className="nav-item">
             <NavLink to="/fala-alpes" className={navLinkClass}>
-              <img 
-                src={iconeFalaAlpes} 
+              {pending.falaAlpes ? (
+                <span className="nav-badge-dot" aria-label="Novidades em Fala Alpes" />
+              ) : null}
+              <img
+                src={iconeFalaAlpes}
                 alt="Fala Alpes" // Importante para acessibilidade
                 style={{ 
                   width: '30px',  // Tamanho proporcional aos outros ícones
