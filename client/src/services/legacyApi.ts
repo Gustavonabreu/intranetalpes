@@ -1,6 +1,9 @@
-const fallbackBase = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const fallbackBase = import.meta.env.VITE_API_URL || '';
 
-export const LEGACY_API_BASE_URL = import.meta.env.VITE_LEGACY_API_URL || fallbackBase;
+export const LEGACY_API_BASE_URL = (import.meta.env.VITE_LEGACY_API_URL || fallbackBase).replace(
+  /\/+$/,
+  ''
+);
 
 export class LegacyApiError extends Error {
   status: number;

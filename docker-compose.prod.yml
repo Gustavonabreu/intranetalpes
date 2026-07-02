@@ -1,0 +1,40 @@
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: alpes_backend
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    expose:
+      - "3000"
+    volumes:
+      - server_uploads:/app/uploads
+      - server_runtime:/app/.runtime
+    networks:
+      - alpes-network
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: alpes_frontend
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "${APP_PORT:-80}:80"
+    networks:
+      - alpes-network
+
+networks:
+  alpes-network:
+    driver: bridge
+
+volumes:
+  server_uploads:
+  server_runtime:

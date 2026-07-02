@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Router, Request, Response } from 'express';
 import { mysqlPool } from '../config/mysql.js';
-import { fetchEquipamentosByGlpiUserId } from '../../services/glpiDbService.ts';
+import { fetchEquipamentosByGlpiUserId } from '../../services/glpiDbService.js';
 
 const router = Router();
 const __filename = fileURLToPath(import.meta.url);
