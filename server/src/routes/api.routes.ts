@@ -822,28 +822,7 @@ async function fetchNoticiasFromMysql(limit = 50) {
     );
 
     const noticias = rows as MysqlRow[];
-    if (noticias.length > 0) return noticias;
-  } catch {
-    // fallback below
-  }
-
-  try {
-    const [rows] = await mysqlPool.query(
-      `SELECT id, titulo, conteudo, atualizado_em AS data_publicacao
-       FROM html_textos
-       ORDER BY atualizado_em DESC
-       LIMIT ?`,
-      [limit]
-    );
-
-    return (rows as MysqlRow[]).map((row) => ({
-      id: row.id,
-      titulo: row.titulo,
-      conteudo: row.conteudo,
-      autor_nome: 'Sistema',
-      imagem_destaque_url: null,
-      data_publicacao: row.data_publicacao
-    }));
+    return noticias;
   } catch {
     return [];
   }
