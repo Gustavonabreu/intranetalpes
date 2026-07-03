@@ -88,6 +88,7 @@ export function DashboardPage() {
   const [calendarMessage, setCalendarMessage] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
+  const [avisosLoading, setAvisosLoading] = useState(true);
   const [currentAvisoIndex, setCurrentAvisoIndex] = useState(0);
   const [heroImage, setHeroImage] = useState(defaultHeroImage);
 
@@ -157,9 +158,15 @@ export function DashboardPage() {
             link: '/noticias'
           }));
           setAvisos(mappedAvisos);
+          setCurrentAvisoIndex(0);
+          setAvisosLoading(false);
         }
       } catch {
-        if (mounted) setAvisos([]);
+        if (mounted) {
+          setAvisos([]);
+          setCurrentAvisoIndex(0);
+          setAvisosLoading(false);
+        }
       }
 
       try {
@@ -420,7 +427,11 @@ export function DashboardPage() {
           </div>
         </div>
 
-        <div className="my-swiper-avisos">
+        <div
+          className={`my-swiper-avisos${
+            avisosLoading ? ' my-swiper-avisos--loading' : avisos.length === 0 ? ' my-swiper-avisos--empty' : ''
+          }`}
+        >
           {avisos.length > 0 ? (
             <>
               <a
@@ -472,7 +483,7 @@ export function DashboardPage() {
             </>
           ) : (
             <div className="comunicados-slide">
-              <p>Carregando avisos...</p>
+              <p>{avisosLoading ? 'Carregando avisos...' : 'Não há avisos no momento'}</p>
             </div>
           )}
         </div>

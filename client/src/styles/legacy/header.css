@@ -35,7 +35,7 @@
 .header-btn {
     background: none;
     border: none;
-    color: var(--cor-texto-invertido); /* Usa a cor do texto do header */
+    color: #fff; /* Usa a cor do texto do header */
     font-size: 1.2em;
     cursor: pointer;
     position: relative;
@@ -44,6 +44,10 @@
 }
 .header-btn:hover {
     color: #fff; /* Fica mais claro no hover */
+}
+
+.header-btn .fa-bell {
+    color: #fff;
 }
 
 /* O círculo vermelho do contador */
