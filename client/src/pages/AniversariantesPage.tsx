@@ -187,13 +187,12 @@ export function AniversariantesPage() {
             autoplay={
               aniversariantesDoMes.length > 2
                 ? {
-                    delay: 3200,
+                    delay: 2000,
                     disableOnInteraction: false,
                     pauseOnMouseEnter: true
                   }
                 : false
             }
-            navigation
             pagination={{
               clickable: true
             }}
@@ -249,7 +248,24 @@ export function AniversariantesPage() {
                       </div>
 
                       <div className="p-2 md:p-5 text-center">
-                        <h3 className="text-slate-800 font-black text-lg md:text-xl uppercase mb-3 dark:text-slate-100">
+                        <h3
+                          className="
+                            h-14
+                            flex
+                            items-center
+                            justify-center
+                            text-center
+                            text-slate-800
+                            font-black
+                            text-lg
+                            md:text-xl
+                            uppercase
+                            leading-tight
+                            px-2
+                            mb-3
+                            dark:text-slate-100
+                          "
+                        >
                           {name}
                         </h3>
 
