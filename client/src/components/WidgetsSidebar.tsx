@@ -274,7 +274,12 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
                         )
                       }
                     />
-                    <span className="text-sm font-medium text-black truncate">{name}</span>
+                    <span
+                      className="text-sm font-medium truncate"
+                      style={{ color: 'var(--cor-texto-principal)' }}
+                    >
+                      {name}
+                    </span>
                   </li>
                 );
               })}
