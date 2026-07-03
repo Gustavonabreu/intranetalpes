@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Cake, PartyPopper, Gift } from 'lucide-react';
 import { legacyGetJson } from '../services/legacyApi';
 import { handlePhotoFallback } from '../services/photoFallback';
+import aniversariantesBg from '../assets/brand/aniversariantes.png';
 
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation, Pagination } from 'swiper/modules';
+import { Navigation, Pagination, Autoplay } from 'swiper/modules';
 
 import 'swiper/css';
 import 'swiper/css/navigation';
@@ -115,22 +116,16 @@ export function AniversariantesPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white via-blue-50/40 to-slate-100 py-16 -m-[30px] px-6 dark:from-slate-900 dark:via-slate-900 dark:to-slate-950">
+    <div
+      className="py-8 md:py-10 px-4 md:px-6"
+      style={{
+        backgroundImage: `url('${aniversariantesBg}')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
       <div className="max-w-7xl mx-auto">
-        {/* Cabeçalho */}
-        <div className="text-center mb-14">
-          <div className="inline-flex items-center justify-center gap-2 rounded-full border border-blue-200 bg-white/70 px-4 py-1.5 text-sm font-semibold text-blue-700 backdrop-blur mb-6 dark:border-blue-900 dark:bg-slate-800/70 dark:text-blue-300">
-            <Cake size={16} /> {mesAtual}
-          </div>
-          <h1 className="text-5xl md:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-cyan-500 flex items-center justify-center gap-4">
-            <PartyPopper className="text-blue-500 shrink-0" size={44} />
-            Aniversariantes
-          </h1>
-          <p className="text-slate-500 mt-4 text-lg dark:text-slate-400">
-            Celebrando quem faz parte da nossa história
-          </p>
-        </div>
-
         {loading && (
           <p className="text-slate-600 text-xl text-center dark:text-slate-300">
             Carregando aniversariantes...
@@ -184,22 +179,31 @@ export function AniversariantesPage() {
 
         {!loading && !error && aniversariantesDoMes.length > 0 && (
           <Swiper
-            modules={[Navigation, Pagination]}
-            spaceBetween={30}
+            modules={[Navigation, Pagination, Autoplay]}
+            spaceBetween={12}
             slidesPerView={1}
+            centeredSlides={false}
+            loop={aniversariantesDoMes.length > 2}
+            autoplay={
+              aniversariantesDoMes.length > 2
+                ? {
+                    delay: 3200,
+                    disableOnInteraction: false,
+                    pauseOnMouseEnter: true
+                  }
+                : false
+            }
             navigation
             pagination={{
               clickable: true
             }}
             breakpoints={{
               768: {
-                slidesPerView: 2
-              },
-              1280: {
-                slidesPerView: 3
+                slidesPerView: 2,
+                spaceBetween: 14
               }
             }}
-            className="pb-16"
+            className="mt-32 md:mt-36 pb-4 md:pb-6 w-full max-w-[960px] mx-auto"
           >
             {aniversariantesDoMes.map((func, index) => {
               const day = getBirthdayDay(func.aniversario);
@@ -208,7 +212,7 @@ export function AniversariantesPage() {
 
               return (
                 <SwiperSlide key={func.id || `${name}-${index}`}>
-                  <div className="p-3">
+                  <div className="p-0.5 md:p-1 w-full max-w-[430px] mx-auto">
                     <div
                       className={`
                         relative bg-white rounded-3xl overflow-hidden border shadow-lg
@@ -227,7 +231,7 @@ export function AniversariantesPage() {
                         </span>
                       )}
 
-                      <div className="h-80 bg-slate-200 overflow-hidden dark:bg-slate-700">
+                      <div className="aspect-square bg-slate-200 overflow-hidden dark:bg-slate-700">
                         <img
                           src={
                             func.imagem_url ||
@@ -244,13 +248,13 @@ export function AniversariantesPage() {
                         />
                       </div>
 
-                      <div className="p-6 text-center">
-                        <h3 className="text-slate-800 font-black text-xl uppercase mb-4 dark:text-slate-100">
+                      <div className="p-2 md:p-5 text-center">
+                        <h3 className="text-slate-800 font-black text-lg md:text-xl uppercase mb-3 dark:text-slate-100">
                           {name}
                         </h3>
 
-                        <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold shadow-md">
-                          <Cake size={16} /> Dia {day || '--'}
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm shadow-md">
+                          <Cake size={16} /> DIA {day || '--'}
                         </div>
                       </div>
                     </div>

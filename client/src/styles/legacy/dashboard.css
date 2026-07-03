@@ -188,6 +188,19 @@
   }
 }
 
+@media (max-width: 1500px) {
+  .clientes-map-shell {
+    min-height: 280px;
+  }
+
+  .clientes-map-bg {
+    min-height: 280px;
+    max-height: 420px;
+    object-fit: contain;
+    background: #0e2f67;
+  }
+}
+
 @media (max-width: 900px) {
   .clientes-map-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -203,5 +216,57 @@
   .clientes-marker {
     width: 44px;
     height: 44px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .telainicio {
+    height: 240px;
+    border-radius: 10px;
+  }
+
+  .welcome-message {
+    margin-top: 16px;
+    margin-bottom: 18px;
+  }
+
+  .welcome-message h3 {
+    font-size: 1.4em;
+  }
+
+  .agenda-container {
+    gap: 16px;
+    margin-top: 16px;
+  }
+
+  .calendario-principal {
+    padding: 12px;
+  }
+
+  .calendar-grid-wrap {
+    overflow-x: auto;
+  }
+
+  .calendar-weekdays,
+  .calendar-grid {
+    min-width: 560px;
+  }
+}
+
+@media (max-width: 768px) {
+  .calendario-principal {
+    display: none;
+  }
+
+  .proximos-eventos {
+    display: none;
+  }
+
+  .agenda-container {
+    margin-top: 12px;
+  }
+
+  #lista-eventos-container {
+    display: none;
   }
 }

@@ -23,7 +23,8 @@ const routeTitles: Record<string, string> = {
 export function MainLayout() {
   const location = useLocation();
   const title = routeTitles[location.pathname] || 'Intranet';
-  const autoCollapseWidgets = location.pathname === '/nossa-equipe';
+  const autoCollapseWidgets = location.pathname === '/nossa-equipe' || location.pathname === '/aniversariantes';
+  const isAniversariantesPage = location.pathname === '/aniversariantes';
 
   return (
     <NotificationsProvider>
@@ -31,7 +32,7 @@ export function MainLayout() {
 
       <div className="intranet-container">
         <Sidebar />
-        <main className="coluna-conteudo">
+        <main className={`coluna-conteudo${isAniversariantesPage ? ' coluna-conteudo--fit' : ''}`}>
           <Outlet />
         </main>
         <WidgetsSidebar autoCollapse={autoCollapseWidgets} />

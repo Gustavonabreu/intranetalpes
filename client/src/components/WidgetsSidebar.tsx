@@ -116,9 +116,7 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
 
   useEffect(() => {
-    if (autoCollapse) {
-      setCollapsed(true);
-    }
+    setCollapsed(autoCollapse);
   }, [autoCollapse]);
 
   useEffect(() => {
