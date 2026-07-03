@@ -9,18 +9,6 @@ type PostRecente = {
   data_publicacao?: string;
 };
 
-type EnqueteOpcao = {
-  id?: number;
-  texto_opcao?: string;
-  votos?: number;
-};
-
-type EnqueteAtiva = {
-  id?: number;
-  pergunta?: string;
-  opcoes?: EnqueteOpcao[];
-};
-
 type MembroEquipe = {
   id?: number;
   nome_formatado?: string;
@@ -104,6 +92,16 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function buildDayEventsTooltip(events: UpcomingEvent[]) {
+  if (!events.length) return '';
+
+  const lines = events.slice(0, 6).map((event) => `${event.timeLabel} - ${event.title}`);
+  if (events.length > 6) {
+    lines.push(`+${events.length - 6} evento(s)`);
+  }
+  return lines.join('\n');
+}
+
 type WidgetsSidebarProps = {
   autoCollapse?: boolean;
 };
@@ -111,7 +109,6 @@ type WidgetsSidebarProps = {
 export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [posts, setPosts] = useState<PostRecente[]>([]);
-  const [enquete, setEnquete] = useState<EnqueteAtiva | null>(null);
   const [aniversariantes, setAniversariantes] = useState<MembroEquipe[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
 
@@ -130,13 +127,6 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
         if (mounted) setPosts(data || []);
       } catch {
         if (mounted) setPosts([]);
-      }
-
-      try {
-        const data = await legacyGetJson<EnqueteAtiva>('/api/enquete-ativa/');
-        if (mounted) setEnquete(data?.id ? data : null);
-      } catch {
-        if (mounted) setEnquete(null);
       }
 
       try {
@@ -191,46 +181,59 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
     };
   }, []);
 
-  const totalVotos = useMemo(() => {
-    if (!enquete?.opcoes?.length) return 0;
-    return enquete.opcoes.reduce((acc, opcao) => acc + Number(opcao.votos || 0), 0);
-  }, [enquete]);
-
   const today = new Date();
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const firstWeekday = monthStart.getDay();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
 
-  const eventDateSet = useMemo(() => {
-    const set = new Set<string>();
-    upcomingEvents.forEach((event) => set.add(toDateKey(event.date)));
-    return set;
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, UpcomingEvent[]>();
+    upcomingEvents.forEach((event) => {
+      const key = toDateKey(event.date);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(event);
+    });
+    return map;
   }, [upcomingEvents]);
 
   const calendarCells = useMemo(() => {
-    const cells: Array<{ key: string; day: number | null; hasEvent: boolean; isToday: boolean }> = [];
+    const cells: Array<{
+      key: string;
+      day: number | null;
+      hasEvent: boolean;
+      isToday: boolean;
+      tooltip: string;
+    }> = [];
     const totalCells = 42;
     const todayKey = toDateKey(today);
 
     for (let index = 0; index < totalCells; index += 1) {
       const day = index - firstWeekday + 1;
       if (day < 1 || day > daysInMonth) {
-        cells.push({ key: `empty-${index}`, day: null, hasEvent: false, isToday: false });
+        cells.push({
+          key: `empty-${index}`,
+          day: null,
+          hasEvent: false,
+          isToday: false,
+          tooltip: ''
+        });
         continue;
       }
 
       const cellDate = new Date(today.getFullYear(), today.getMonth(), day);
       const cellKey = toDateKey(cellDate);
+      const dayEvents = eventsByDate.get(cellKey) || [];
       cells.push({
         key: cellKey,
         day,
-        hasEvent: eventDateSet.has(cellKey),
-        isToday: cellKey === todayKey
+        hasEvent: dayEvents.length > 0,
+        isToday: cellKey === todayKey,
+        tooltip: buildDayEventsTooltip(dayEvents)
       });
     }
 
     return cells;
-  }, [daysInMonth, eventDateSet, firstWeekday, today]);
+  }, [daysInMonth, eventsByDate, firstWeekday, today]);
 
   const weekLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
@@ -325,6 +328,8 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
             {calendarCells.map((cell) => (
               <div
                 key={cell.key}
+                className={cell.hasEvent ? 'widget-calendar-day has-tooltip' : 'widget-calendar-day'}
+                data-tooltip={cell.hasEvent ? cell.tooltip : undefined}
                 style={{
                   minHeight: '28px',
                   borderRadius: '6px',
@@ -339,9 +344,10 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontWeight: cell.hasEvent || cell.isToday ? 700 : 500
+                  fontWeight: cell.hasEvent || cell.isToday ? 700 : 500,
+                  position: 'relative',
+                  cursor: cell.hasEvent ? 'help' : 'default'
                 }}
-                title={cell.hasEvent ? 'Dia com evento' : ''}
               >
                 {cell.day || ''}
               </div>

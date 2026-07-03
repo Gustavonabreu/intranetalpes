@@ -1,5 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { BarChart2, CalendarDays, Image as ImageIcon, X } from 'lucide-react';
+import { CalendarDays, Image as ImageIcon, X } from 'lucide-react';
 import {
   LEGACY_API_BASE_URL,
   LegacyApiError,
@@ -8,7 +8,7 @@ import {
 } from '../services/legacyApi';
 import '../styles/admin-cms.css';
 
-type ModalType = 'imagem' | 'enquetes' | 'eventos' | null;
+type ModalType = 'imagem' | 'eventos' | null;
 type SedeAlvo = 'todas' | 'curitiba' | 'sao_paulo' | 'rio';
 
 type IntranetConfig = {
@@ -25,20 +25,6 @@ type Noticia = {
   data_inicio?: string | null;
   data_fim?: string | null;
   ativo: number;
-};
-
-type EnqueteOpcao = {
-  id: number;
-  enquete_id: number;
-  texto_opcao: string;
-  votos: number;
-};
-
-type Enquete = {
-  id: number;
-  pergunta: string;
-  ativo: number;
-  opcoes: EnqueteOpcao[];
 };
 
 type EventoIntranet = {
@@ -81,9 +67,6 @@ export function AdminIntranetPage() {
     ativo: true
   });
 
-  const [enquetes, setEnquetes] = useState<Enquete[]>([]);
-  const [novaEnquete, setNovaEnquete] = useState({ pergunta: '', ativo: true });
-  const [novaOpcaoPorEnquete, setNovaOpcaoPorEnquete] = useState<Record<number, string>>({});
   const [eventos, setEventos] = useState<EventoIntranet[]>([]);
   const [novoEvento, setNovoEvento] = useState({
     titulo: '',
@@ -101,12 +84,6 @@ export function AdminIntranetPage() {
       icon: <ImageIcon size={36} />
     },
     {
-      id: 'enquetes' as const,
-      title: 'Enquetes',
-      description: 'Crie ou encerre as enquetes da semana',
-      icon: <BarChart2 size={36} />
-    },
-    {
       id: 'eventos' as const,
       title: 'Calendario Sidebar',
       description: 'Cadastre eventos por data e sede',
@@ -118,14 +95,12 @@ export function AdminIntranetPage() {
     setLoading(true);
     setFeedback('');
     try {
-      const [config, polls, events] = await Promise.all([
+      const [config, events] = await Promise.all([
         legacyGetJson<IntranetConfig>('/api/admin/intranet/config'),
-        legacyGetJson<Enquete[]>('/api/admin/intranet/enquetes'),
         legacyGetJson<EventoIntranet[]>('/api/admin/intranet/eventos')
       ]);
 
       setHeroUrl(resolveMediaUrl(asText(config.imagem_inicial_url)));
-      setEnquetes(polls || []);
       setEventos(
         (events || []).map((item) => ({
           ...item,
@@ -289,94 +264,6 @@ export function AdminIntranetPage() {
     }
   }
 
-  async function criarEnquete(event: FormEvent) {
-    event.preventDefault();
-    try {
-      await legacyMutateJson<{ success: boolean }>('POST', '/api/admin/intranet/enquetes', {
-        pergunta: novaEnquete.pergunta,
-        ativo: novaEnquete.ativo
-      });
-      setNovaEnquete({ pergunta: '', ativo: true });
-      await loadAll();
-      setFeedback('Enquete criada.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao criar enquete.');
-    }
-  }
-
-  async function salvarEnquete(item: Enquete) {
-    try {
-      await legacyMutateJson<{ success: boolean }>('PUT', `/api/admin/intranet/enquetes/${item.id}`, {
-        pergunta: item.pergunta,
-        ativo: Boolean(item.ativo)
-      });
-      setFeedback('Enquete atualizada.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao atualizar enquete.');
-    }
-  }
-
-  async function ativarEnquete(id: number) {
-    try {
-      await legacyMutateJson<{ success: boolean }>('POST', `/api/admin/intranet/enquetes/${id}/ativar`);
-      await loadAll();
-      setFeedback('Enquete ativada.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao ativar enquete.');
-    }
-  }
-
-  async function excluirEnquete(id: number) {
-    if (!window.confirm('Excluir esta enquete?')) return;
-    try {
-      await legacyMutateJson<{ success: boolean }>('DELETE', `/api/admin/intranet/enquetes/${id}`);
-      setEnquetes((prev) => prev.filter((item) => item.id !== id));
-      setFeedback('Enquete removida.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao excluir enquete.');
-    }
-  }
-
-  async function criarOpcao(enqueteId: number) {
-    const texto = (novaOpcaoPorEnquete[enqueteId] || '').trim();
-    if (!texto) return;
-    try {
-      await legacyMutateJson<{ success: boolean }>(
-        'POST',
-        `/api/admin/intranet/enquetes/${enqueteId}/opcoes`,
-        { texto_opcao: texto }
-      );
-      setNovaOpcaoPorEnquete((prev) => ({ ...prev, [enqueteId]: '' }));
-      await loadAll();
-      setFeedback('Opcao adicionada.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao adicionar opcao.');
-    }
-  }
-
-  async function salvarOpcao(opcao: EnqueteOpcao) {
-    try {
-      await legacyMutateJson<{ success: boolean }>(
-        'PUT',
-        `/api/admin/intranet/enquetes/opcoes/${opcao.id}`,
-        { texto_opcao: opcao.texto_opcao }
-      );
-      setFeedback('Opcao atualizada.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao atualizar opcao.');
-    }
-  }
-
-  async function excluirOpcao(id: number) {
-    try {
-      await legacyMutateJson<{ success: boolean }>('DELETE', `/api/admin/intranet/enquetes/opcoes/${id}`);
-      await loadAll();
-      setFeedback('Opcao removida.');
-    } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao remover opcao.');
-    }
-  }
-
   async function criarEvento(event: FormEvent) {
     event.preventDefault();
     try {
@@ -474,53 +361,6 @@ export function AdminIntranetPage() {
             <div className="admin-actions">
               <button type="button" onClick={() => salvarNoticia(item)}>Salvar</button>
               <button type="button" className="danger" onClick={() => excluirNoticia(item.id)}>Excluir</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  function renderEnquetesContent() {
-    return (
-      <div className="admin-block">
-        <h3>Enquetes</h3>
-        <form onSubmit={criarEnquete} className="admin-form-grid">
-          <input placeholder="Pergunta da enquete" value={novaEnquete.pergunta} onChange={(e) => setNovaEnquete((p) => ({ ...p, pergunta: e.target.value }))} required />
-          <label className="check">
-            <input type="checkbox" checked={novaEnquete.ativo} onChange={(e) => setNovaEnquete((p) => ({ ...p, ativo: e.target.checked }))} />
-            Criar como ativa
-          </label>
-          <button type="submit">Criar enquete</button>
-        </form>
-
-        {enquetes.map((item) => (
-          <div className="admin-item" key={item.id}>
-            <input value={item.pergunta} onChange={(e) => setEnquetes((prev) => prev.map((p) => (p.id === item.id ? { ...p, pergunta: e.target.value } : p)))} />
-            <label className="check">
-              <input type="checkbox" checked={Boolean(item.ativo)} onChange={(e) => setEnquetes((prev) => prev.map((p) => (p.id === item.id ? { ...p, ativo: e.target.checked ? 1 : 0 } : p)))} />
-              Ativa
-            </label>
-            <div className="admin-actions">
-              <button type="button" onClick={() => salvarEnquete(item)}>Salvar</button>
-              <button type="button" onClick={() => ativarEnquete(item.id)}>Ativar</button>
-              <button type="button" className="danger" onClick={() => excluirEnquete(item.id)}>Excluir</button>
-            </div>
-
-            <div className="admin-options">
-              {item.opcoes.map((opcao) => (
-                <div key={opcao.id} className="admin-option-row">
-                  <input value={opcao.texto_opcao} onChange={(e) => setEnquetes((prev) => prev.map((poll) => poll.id === item.id ? { ...poll, opcoes: poll.opcoes.map((o) => o.id === opcao.id ? { ...o, texto_opcao: e.target.value } : o) } : poll ))} />
-                  <small>{opcao.votos} voto(s)</small>
-                  <button type="button" onClick={() => salvarOpcao(opcao)}>Salvar opcao</button>
-                  <button type="button" className="danger" onClick={() => excluirOpcao(opcao.id)}>Excluir</button>
-                </div>
-              ))}
-
-              <div className="admin-option-row">
-                <input placeholder="Nova opcao" value={novaOpcaoPorEnquete[item.id] || ''} onChange={(e) => setNovaOpcaoPorEnquete((prev) => ({ ...prev, [item.id]: e.target.value }))} />
-                <button type="button" onClick={() => criarOpcao(item.id)}>Adicionar opcao</button>
-              </div>
             </div>
           </div>
         ))}
@@ -653,8 +493,6 @@ export function AdminIntranetPage() {
     switch (activeModal) {
       case 'imagem':
         return renderImagemContent();
-      case 'enquetes':
-        return renderEnquetesContent();
       case 'eventos':
         return renderEventosContent();
       default:
