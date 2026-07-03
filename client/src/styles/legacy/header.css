@@ -272,3 +272,27 @@
     align-items: center;
     gap: 20px; /* Espaçamento entre os ícones e o perfil */
 }
+@media (max-width: 768px) {
+    .header-direita {
+        gap: 10px;
+    }
+
+    #user-name {
+        display: none;
+    }
+
+    .user-profile-trigger {
+        padding: 4px;
+    }
+
+    #user-avatar {
+        width: 32px;
+        height: 32px;
+    }
+
+    .notificacoes-dropdown {
+        width: min(92vw, 320px);
+        right: -6px;
+        max-height: 60vh;
+    }
+}
