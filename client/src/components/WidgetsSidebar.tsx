@@ -311,7 +311,7 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
         </div>
 
         <div className="widget">
-          <h3 style={{ color: '#000000' }}>Proximos Eventos</h3>
+          <h3>Proximos Eventos</h3>
           <div
             style={{
               display: 'grid',

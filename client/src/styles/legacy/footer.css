@@ -1,10 +1,8 @@
-/* css/footer.css (VERSÃO REDESENHADA E COMPACTA) */
-
 .footer-redesenhado {
     background-color: var(--cor-destaque);
-    color: var(--cor-texto-secundario);
     padding: 40px 30px 20px 30px; /* Padding reduzido */
     border-top: 1px solid var(--cor-borda);
+    color: #fff;
 }
 
 .footer-container {
@@ -20,10 +18,10 @@
 
 .footer-titulo {
     font-size: 1.2em;
-    color: var(--cor-fundo);
     margin-top: 0;
     margin-bottom: 20px;
     font-weight: bold;
+    color: #fff;
 }
 
 .sobre-grupo{
@@ -38,13 +36,11 @@
 
 .Contato-secao{
   padding-right: 40px;
-  color: var(--cor-fundo);
 }
 
 .sobre-grupo p {
     line-height: 1.6;
     font-size: 0.9em;
-    color: var(--cor-fundo);
 }
 
 .sedes-container {
@@ -71,13 +67,11 @@
 .sede-info h4 {
     margin: 0 0 5px 0;
     font-size: 1em;
-    color: var(--cor-fundo);
 }
 
 .sede-info p {
     margin: 0;
     font-size: 0.85em;
-    color: var(--cor-fundo);
 }
 
 /* Linha de Copyright no final */
@@ -85,6 +79,5 @@
     text-align: center;
     margin-top: 10px;
     padding-top: 10px;
-    color: var(--cor-fundo);
     font-size: 0.8em;
 }
