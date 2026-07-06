@@ -1002,7 +1002,7 @@ router.get('/equipe', async (req: Request, res: Response) => {
         `SELECT
             codusu,
             nome,
-            grupo,
+            setor,
             cargo,
             email,
             celular,
@@ -1044,7 +1044,7 @@ router.get('/equipe', async (req: Request, res: Response) => {
     const data = (rows as MysqlRow[]).map((row) => ({
       id: row.codusu,
       nome_formatado: row.nome,
-      grupo: row.setor || '',
+      setor: row.setor || '',
       cargo: row.cargo || '',
       email: row.email || '',
       telefone: row.celular || row.fone || '',

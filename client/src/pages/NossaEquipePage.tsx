@@ -7,6 +7,7 @@ import mountainImage from '../assets/brand/montanha.png';
 type Funcionario = {
   id?: number;
   nome_formatado?: string;
+  setor?: string;
   email?: string;
   telefone?: string;
   imagem_url?: string;
@@ -102,6 +103,10 @@ export function NossaEquipePage() {
                       </div>
 
                       <h3 className="profile-name-front">{name}</h3>
+
+                      {func.setor && (
+                        <p className="profile-sector-front">{func.setor}</p>
+                      )}
                     </div>
 
                     <div className="card-interaction-equipe">
