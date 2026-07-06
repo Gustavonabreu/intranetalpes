@@ -998,17 +998,53 @@ router.post('/auth/logout', (req: Request, res: Response) => {
 // Team / photos / birthdays
 router.get('/equipe', async (req: Request, res: Response) => {
   try {
-    const [rows] = await mysqlPool.query(
-      `SELECT codusu, nome, grupo, cargo, email, celular, fone, foto, data_nascimento, dtNascimento
-       FROM usuario
-       WHERE sts = 'ATIVO'
-       ORDER BY nome ASC`
-    );
+      const [rows] = await mysqlPool.query(
+        `SELECT
+            codusu,
+            nome,
+            grupo,
+            cargo,
+            email,
+            celular,
+            fone,
+            foto,
+            data_nascimento,
+            dtNascimento
+        FROM usuario
+        WHERE sts = 'ATIVO'
+        ORDER BY
+            CASE setor
+              WHEN 'CEO' THEN 1
+              WHEN 'COO' THEN 2
+              WHEN 'NOVOS NEGÓCIOS' THEN 3
+              WHEN 'OPERAÇÕES' THEN 4
+              WHEN 'MIDIA' THEN 5
+              WHEN 'CRIAÇÃO' THEN 6
+              WHEN 'MARKETING DIGITAL' THEN 7
+              WHEN 'REDAÇÃO' THEN 8
+              WHEN 'OPEC' THEN 9
+              WHEN 'GENTE E GESTÃO' THEN 10
+              WHEN 'FICILITIES' THEN 11
+              WHEN 'FINANCEIRO' THEN 12
+              WHEN 'FISCAL' THEN 13
+              WHEN 'JURÍDICO' THEN 14
+              WHEN 'COMERCIAL' THEN 15
+              WHEN 'ATENDIMENTO' THEN 16
+              WHEN 'CONTROLADORIA' THEN 17
+              WHEN 'ADMINISTRATIVO' THEN 18
+              WHEN 'TECNOLOGIA' THEN 19
+              WHEN 'SECRETÁRIA' THEN 20
+              WHEN 'ANTENA 1' THEN 21
+              WHEN 'LOCUÇÃO' THEN 22
+              ELSE 999
+            END,
+            nome ASC`
+      );
 
     const data = (rows as MysqlRow[]).map((row) => ({
       id: row.codusu,
       nome_formatado: row.nome,
-      grupo: row.grupo || '',
+      grupo: row.setor || '',
       cargo: row.cargo || '',
       email: row.email || '',
       telefone: row.celular || row.fone || '',
