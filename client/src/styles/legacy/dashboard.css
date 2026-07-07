@@ -238,18 +238,72 @@
     gap: 16px;
     margin-top: 16px;
   }
+}
 
+@media (max-width: 1366px) {
   .calendario-principal {
-    padding: 12px;
+    padding: 10px;
   }
 
   .calendar-grid-wrap {
-    overflow-x: auto;
+    overflow-x: visible;
   }
 
   .calendar-weekdays,
   .calendar-grid {
-    min-width: 560px;
+    min-width: 0;
+    gap: 4px;
+  }
+
+  .calendar-day-cell {
+    min-height: 76px;
+    padding: 4px;
+    gap: 3px;
+    aspect-ratio: 1 / 1;
+  }
+
+  .calendar-weekdays span {
+    font-size: 10px;
+  }
+
+  .calendar-month-label {
+    min-width: 0;
+    font-size: 0.9rem;
+  }
+
+  .calendar-day-number {
+    font-size: 10px;
+  }
+
+  .calendar-event-chip {
+    font-size: 9px;
+    line-height: 1.15;
+    padding: 1px 2px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .calendar-weekdays,
+  .calendar-grid {
+    gap: 3px;
+  }
+
+  .calendar-day-cell {
+    min-height: 66px;
+    padding: 3px;
+  }
+
+  .calendar-weekdays span {
+    font-size: 9px;
+  }
+
+  .calendar-day-number {
+    font-size: 9px;
+  }
+
+  .calendar-event-chip {
+    font-size: 8px;
+    padding: 1px 2px;
   }
 }
 
