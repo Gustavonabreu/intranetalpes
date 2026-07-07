@@ -220,6 +220,86 @@
   gap: 8px;
 }
 
+/* Dark mode aligned with app theme class */
+body.dark-mode .admin-panel-head h2 {
+  color: #e2e8f0;
+}
+
+body.dark-mode .admin-feedback {
+  background: #163a2f;
+  border-color: #2f7d66;
+  color: #b9f6ca;
+}
+
+body.dark-mode .admin-module-card {
+  background: #0f172a;
+  border-color: #1e293b;
+}
+
+body.dark-mode .admin-module-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 12px 26px rgba(2, 6, 23, 0.5);
+}
+
+body.dark-mode .admin-module-icon {
+  background: #1e293b;
+  color: #93c5fd;
+}
+
+body.dark-mode .admin-module-card h3 {
+  color: #e2e8f0;
+}
+
+body.dark-mode .admin-module-card p {
+  color: #94a3b8;
+}
+
+body.dark-mode .admin-modal-card {
+  background: #0b1220;
+  border: 1px solid #1e293b;
+}
+
+body.dark-mode .admin-modal-head {
+  border-bottom-color: #1e293b;
+}
+
+body.dark-mode .admin-modal-head span {
+  color: #94a3b8;
+}
+
+body.dark-mode .admin-modal-close {
+  background: #1e293b;
+  color: #cbd5e1;
+}
+
+body.dark-mode .admin-block {
+  background: #0f172a;
+  border-color: #1e293b;
+  color: #e2e8f0;
+}
+
+body.dark-mode .admin-item {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+body.dark-mode .admin-item input,
+body.dark-mode .admin-item select,
+body.dark-mode .admin-item textarea,
+body.dark-mode .admin-form-grid input,
+body.dark-mode .admin-form-grid select,
+body.dark-mode .admin-form-grid textarea,
+body.dark-mode .admin-block input,
+body.dark-mode .admin-block select {
+  background: #0b1220;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+body.dark-mode .admin-options {
+  background: #0b1220;
+}
+
 @media (max-width: 900px) {
   .admin-option-row {
     grid-template-columns: 1fr;

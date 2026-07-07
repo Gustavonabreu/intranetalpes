@@ -20,18 +20,12 @@ export function Header({ title }: HeaderProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { noticias, unreadCount, isRead, markAsRead, markAllAsRead } = useNotifications();
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
   const userName = user?.nome_completo || 'Usuario';
   const userAvatar = user?.imagem_url || 'https://dummyimage.com/40x40/cccccc/333333&text=U';
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    const isDark = savedTheme === 'dark';
-    setDarkMode(isDark);
-  }, []);
 
   useEffect(() => {
     document.body.classList.toggle('dark-mode', darkMode);

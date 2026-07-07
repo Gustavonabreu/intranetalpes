@@ -148,8 +148,6 @@ export function NossaEquipePage() {
             })
           : null}
       </div>
-
-      <p className="equipe-instruction-text">Passe o mouse para ver detalhes</p>
     </>
   );
 }

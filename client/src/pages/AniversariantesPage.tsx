@@ -117,7 +117,7 @@ export function AniversariantesPage() {
 
   return (
     <div
-      className="py-8 md:py-10 px-4 md:px-6"
+      className="relative py-8 md:py-10 px-4 md:px-6"
       style={{
         backgroundImage: `url('${aniversariantesBg}')`,
         backgroundSize: 'cover',
@@ -126,6 +126,46 @@ export function AniversariantesPage() {
       }}
     >
       <div className="max-w-7xl mx-auto">
+        <div
+          className="
+            relative
+            w-full
+            aspect-[16/4]
+            min-h-[clamp(120px,18vw,220px)]
+          "
+        >
+          <div
+            className="
+              absolute
+              left-1/2
+              -translate-x-1/2
+              top-[56%]
+              sm:top-[57%]
+              md:top-[58%]
+              lg:top-[59%]
+              xl:top-[60%]
+              z-20
+              text-center
+              pointer-events-none
+            "
+          >
+            <h2
+              className="
+                text-white
+                uppercase
+                font-black
+                tracking-wider
+                drop-shadow-lg
+                text-2xl
+                sm:text-3xl
+                md:text-4xl
+              "
+            >
+              {mesAtual}
+            </h2>
+          </div>
+        </div>
+
         {loading && (
           <p className="text-slate-600 text-xl text-center dark:text-slate-300">
             Carregando aniversariantes...
@@ -202,7 +242,7 @@ export function AniversariantesPage() {
                 spaceBetween: 14
               }
             }}
-            className="mt-32 md:mt-36 pb-4 md:pb-6 w-full max-w-[960px] mx-auto"
+            className="mt-2 md:mt-3 pb-4 md:pb-6 w-full max-w-[960px] mx-auto"
           >
             {aniversariantesDoMes.map((func, index) => {
               const day = getBirthdayDay(func.aniversario);
