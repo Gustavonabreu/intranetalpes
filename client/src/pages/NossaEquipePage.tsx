@@ -9,7 +9,7 @@ type Funcionario = {
   nome_formatado?: string;
   setor?: string;
   email?: string;
-  telefone?: string;
+  fone?: string;
   imagem_url?: string;
 };
 
@@ -69,13 +69,13 @@ export function NossaEquipePage() {
 
         {!loading && !error
           ? funcionarios.map((func, index) => {
-              const phone = formatPhoneDigits(func.telefone);
+              const phone = formatPhoneDigits(func.fone);
               const name = func.nome_formatado || 'Colaborador';
               const profileName = firstName(name);
               const photoFallback = 'https://dummyimage.com/120x120/cccccc/333333&text=U';
               const photoUrl = func.imagem_url || photoFallback;
               const contactUrl = phone
-                ? `https://wa.me/55${phone}`
+                ? `https://wa.me/${phone}`
                 : func.email
                   ? `mailto:${func.email}`
                   : '#';
@@ -116,7 +116,7 @@ export function NossaEquipePage() {
                         {phone ? (
                           <div className="contact-item-equipe">
                             <i className="fab fa-whatsapp" />
-                            <span>{func.telefone}</span>
+                            <span>{func.fone}</span>
                           </div>
                         ) : null}
 

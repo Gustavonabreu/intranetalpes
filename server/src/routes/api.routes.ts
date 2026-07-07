@@ -1047,7 +1047,8 @@ router.get('/equipe', async (req: Request, res: Response) => {
       setor: row.setor || '',
       cargo: row.cargo || '',
       email: row.email || '',
-      telefone: row.celular || row.fone || '',
+      fone: row.fone || '',
+      telefone: row.fone || '',
       imagem_url: userImageUrl(row),
       aniversario: userBirthDate(row)
     }));
