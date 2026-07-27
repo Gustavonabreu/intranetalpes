@@ -604,6 +604,13 @@ function normalizeRoutePath(rawPath: unknown) {
   return clean;
 }
 
+const YOUTUBE_URL_PATTERN =
+  /^https?:\/\/(www\.)?(youtube\.com\/(watch\?v=|embed\/|shorts\/)|youtu\.be\/)[\w-]{6,}/i;
+
+function isValidYoutubeUrl(value: string) {
+  return YOUTUBE_URL_PATTERN.test(value.trim());
+}
+
 async function resolveUserIdByLogin(login: string) {
   const [rows] = await mysqlPool.query(
     `SELECT codusu, id, codigo
@@ -800,6 +807,16 @@ async function ensureFeatureTables() {
     if (error?.code !== 'ER_DUP_FIELDNAME') {
       migrationFailed = true;
       console.error('Falha ao adicionar coluna sede_alvo em intranet_eventos:', error);
+    }
+  }
+  try {
+    await mysqlPool.query(
+      `ALTER TABLE intranet_config ADD COLUMN fala_alpes_video_url TEXT NULL`
+    );
+  } catch (error: any) {
+    if (error?.code !== 'ER_DUP_FIELDNAME') {
+      migrationFailed = true;
+      console.error('Falha ao adicionar coluna fala_alpes_video_url em intranet_config:', error);
     }
   } finally {
     featureTablesReady = !migrationFailed;
@@ -1186,7 +1203,7 @@ router.get('/intranet-config', async (req: Request, res: Response) => {
 
   try {
     const [rows] = await mysqlPool.query(
-      `SELECT id, imagem_inicial_url, updated_by, updated_at
+      `SELECT id, imagem_inicial_url, fala_alpes_video_url, updated_by, updated_at
        FROM intranet_config
        ORDER BY id DESC
        LIMIT 1`
@@ -1761,7 +1778,7 @@ router.get('/admin/intranet/config', async (req: Request, res: Response) => {
   await ensureFeatureTables();
 
   const [rows] = await mysqlPool.query(
-    `SELECT id, imagem_inicial_url, updated_by, updated_at
+    `SELECT id, imagem_inicial_url, fala_alpes_video_url, updated_by, updated_at
      FROM intranet_config
      ORDER BY id DESC
      LIMIT 1`
@@ -1775,22 +1792,57 @@ router.put('/admin/intranet/config', async (req: Request, res: Response) => {
   if (!session) return;
   await ensureFeatureTables();
 
-  const imagemInicialUrl = String(req.body?.imagem_inicial_url || '').trim() || null;
-  const [rows] = await mysqlPool.query('SELECT id FROM intranet_config ORDER BY id DESC LIMIT 1');
+  const [rows] = await mysqlPool.query(
+    `SELECT id, imagem_inicial_url, fala_alpes_video_url
+     FROM intranet_config
+     ORDER BY id DESC
+     LIMIT 1`
+  );
   const existing = rows as MysqlRow[];
+  const current = existing[0];
 
-  if (!existing.length) {
+  const imagemInicialUrl =
+    req.body?.imagem_inicial_url !== undefined
+      ? String(req.body.imagem_inicial_url || '').trim() || null
+      : current?.imagem_inicial_url ?? null;
+
+  let falaAlpesVideoUrl = current?.fala_alpes_video_url ?? null;
+  if (req.body?.fala_alpes_video_url !== undefined) {
+    const rawVideoUrl = String(req.body.fala_alpes_video_url || '').trim();
+    if (rawVideoUrl && !isValidYoutubeUrl(rawVideoUrl)) {
+      return res.status(400).json({ error: 'Link do YouTube invalido.' });
+    }
+    falaAlpesVideoUrl = rawVideoUrl || null;
+  }
+
+  const videoUrlChanged =
+    req.body?.fala_alpes_video_url !== undefined &&
+    falaAlpesVideoUrl !== (current?.fala_alpes_video_url ?? null);
+
+  if (!current) {
     await mysqlPool.query(
-      `INSERT INTO intranet_config (imagem_inicial_url, updated_by)
-       VALUES (?, ?)`,
-      [imagemInicialUrl, session.user.login]
+      `INSERT INTO intranet_config (imagem_inicial_url, fala_alpes_video_url, updated_by)
+       VALUES (?, ?, ?)`,
+      [imagemInicialUrl, falaAlpesVideoUrl, session.user.login]
     );
   } else {
     await mysqlPool.query(
       `UPDATE intranet_config
-       SET imagem_inicial_url = ?, updated_by = ?
+       SET imagem_inicial_url = ?, fala_alpes_video_url = ?, updated_by = ?
        WHERE id = ?`,
-      [imagemInicialUrl, session.user.login, existing[0].id]
+      [imagemInicialUrl, falaAlpesVideoUrl, session.user.login, current.id]
+    );
+  }
+
+  if (videoUrlChanged && falaAlpesVideoUrl) {
+    await mysqlPool.query(
+      `INSERT INTO intranet_noticias (titulo, conteudo, autor_nome)
+       VALUES (?, ?, ?)`,
+      [
+        'Novo video no Fala Alpes',
+        'O video da pagina Fala Alpes foi atualizado. Confira a novidade!',
+        session.user.nome_completo
+      ]
     );
   }
 

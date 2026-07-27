@@ -8,4 +8,4 @@ dist/
 *.log
 server/uploads/
 server/.runtime/
-
+CLAUDE.md

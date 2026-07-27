@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { motion, Variants } from 'framer-motion';
-import { Target, Eye, Heart, Mountain, MapPin } from 'lucide-react';
+import { Target, Eye, Heart, ChevronDown, MapPin } from 'lucide-react';
 import mountainImage from '../assets/brand/montanha.png';
 import sedeCuritiba from '../assets/brand/sede-curitiba.jpg';
 import sedeSaoPaulo from '../assets/brand/sede-sao-paulo.jpg';
 import sedeRio from '../assets/brand/sede-rio-de-janeiro.jpg';
+import logoGrupoAlpes from '../assets/brand/logo_grupo_preto.png';
+import logoGrupoAlpesWhite from '../assets/brand/logo-alpes-white.png';
 import { useNotifications } from '../notifications/NotificationsProvider';
 
 const valores = [
@@ -44,9 +46,10 @@ export default function SobreEmpresa() {
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="relative mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-white/70 px-4 py-1.5 text-sm font-semibold text-blue-700 backdrop-blur dark:border-blue-900 dark:bg-slate-800/70 dark:text-blue-300"
+          className="relative mb-6 inline-flex items-center rounded-full border border-blue-200 bg-white/70 px-5 py-2 backdrop-blur dark:border-blue-900 dark:bg-slate-800/70"
         >
-          <Mountain size={16} /> Grupo Alpes
+          <img src={logoGrupoAlpes} alt="Grupo Alpes" className="h-4 w-auto dark:hidden" />
+          <img src={logoGrupoAlpesWhite} alt="Grupo Alpes" className="hidden h-4 w-auto dark:block" />
         </motion.span>
 
         <motion.h1
@@ -70,9 +73,10 @@ export default function SobreEmpresa() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1, duration: 1 }}
-          className="relative mt-8 text-slate-400 text-sm animate-bounce dark:text-slate-500"
+          className="relative mt-8 flex flex-col items-center gap-1 text-slate-400 text-sm animate-bounce dark:text-slate-500"
         >
-          Role para descobrir ↓
+          Role para descobrir
+          <ChevronDown size={18} />
         </motion.p>
       </section>
 
@@ -230,8 +234,7 @@ export default function SobreEmpresa() {
           viewport={{ once: true }}
           className="relative z-10 text-center text-white"
         >
-          <Mountain size={64} className="mx-auto mb-6 text-white/80" />
-          <h2 className="text-4xl md:text-7xl font-black tracking-tighter">ALPES</h2>
+          <img src={logoGrupoAlpesWhite} alt="Grupo Alpes" className="mx-auto mb-6 h-10 w-auto opacity-90" />
           <p className="text-xl md:text-2xl mt-4 font-light tracking-wide text-white/80">
             O topo é o nosso destino.
           </p>

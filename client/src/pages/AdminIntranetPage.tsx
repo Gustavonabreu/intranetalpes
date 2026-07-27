@@ -1,19 +1,21 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { CalendarDays, Image as ImageIcon, X } from 'lucide-react';
+import { CalendarDays, Image as ImageIcon, Youtube, X } from 'lucide-react';
 import {
   LEGACY_API_BASE_URL,
   LegacyApiError,
   legacyGetJson,
   legacyMutateJson
 } from '../services/legacyApi';
+import { getYoutubeEmbedUrl } from '../utils/youtube';
 import '../styles/admin-cms.css';
 
-type ModalType = 'imagem' | 'eventos' | null;
+type ModalType = 'imagem' | 'eventos' | 'falaAlpes' | null;
 type SedeAlvo = 'todas' | 'curitiba' | 'sao_paulo' | 'rio';
 
 type IntranetConfig = {
   id?: number;
   imagem_inicial_url?: string | null;
+  fala_alpes_video_url?: string | null;
 };
 
 type Noticia = {
@@ -55,6 +57,7 @@ export function AdminIntranetPage() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
   const [heroUrl, setHeroUrl] = useState('');
+  const [falaAlpesVideoUrl, setFalaAlpesVideoUrl] = useState('');
 
   const [noticias, setNoticias] = useState<Noticia[]>([]);
   const [novaNoticia, setNovaNoticia] = useState({
@@ -88,6 +91,12 @@ export function AdminIntranetPage() {
       title: 'Calendario Sidebar',
       description: 'Cadastre eventos por data e sede',
       icon: <CalendarDays size={36} />
+    },
+    {
+      id: 'falaAlpes' as const,
+      title: 'Fala Alpes',
+      description: 'Defina o video do YouTube exibido na pagina Fala Alpes',
+      icon: <Youtube size={36} />
     }
   ];
 
@@ -101,6 +110,7 @@ export function AdminIntranetPage() {
       ]);
 
       setHeroUrl(resolveMediaUrl(asText(config.imagem_inicial_url)));
+      setFalaAlpesVideoUrl(asText(config.fala_alpes_video_url));
       setEventos(
         (events || []).map((item) => ({
           ...item,
@@ -162,6 +172,22 @@ export function AdminIntranetPage() {
       setFeedback('Imagem inicial atualizada.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Falha ao salvar imagem inicial.');
+    }
+  }
+
+  async function salvarFalaAlpesVideo() {
+    const trimmed = falaAlpesVideoUrl.trim();
+    if (trimmed && !getYoutubeEmbedUrl(trimmed)) {
+      setFeedback('Informe um link valido do YouTube.');
+      return;
+    }
+    try {
+      await legacyMutateJson<{ success: boolean }>('PUT', '/api/admin/intranet/config', {
+        fala_alpes_video_url: trimmed
+      });
+      setFeedback('Video do Fala Alpes atualizado. Uma notificacao foi enviada aos colaboradores.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Falha ao salvar o video.');
     }
   }
 
@@ -321,6 +347,39 @@ export function AdminIntranetPage() {
         </label>
         {uploading ? <small>Enviando imagem...</small> : null}
         <button type="button" onClick={salvarConfig}>Salvar imagem</button>
+      </div>
+    );
+  }
+
+  function renderFalaAlpesContent() {
+    const previewUrl = getYoutubeEmbedUrl(falaAlpesVideoUrl);
+    return (
+      <div className="admin-block">
+        <h3>Video do Fala Alpes</h3>
+        <label>
+          Link do YouTube
+          <input
+            placeholder="https://www.youtube.com/watch?v=..."
+            value={falaAlpesVideoUrl}
+            onChange={(e) => setFalaAlpesVideoUrl(e.target.value)}
+          />
+        </label>
+        <small>
+          Aceita links no formato watch, youtu.be ou embed. Ao trocar o video, uma notificacao e
+          criada automaticamente para os colaboradores.
+        </small>
+        {previewUrl ? (
+          <iframe
+            width="100%"
+            height="260"
+            src={previewUrl}
+            title="Previa do video Fala Alpes"
+            frameBorder="0"
+            allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : null}
+        <button type="button" onClick={salvarFalaAlpesVideo}>Salvar video</button>
       </div>
     );
   }
@@ -495,6 +554,8 @@ export function AdminIntranetPage() {
         return renderImagemContent();
       case 'eventos':
         return renderEventosContent();
+      case 'falaAlpes':
+        return renderFalaAlpesContent();
       default:
         return null;
     }
