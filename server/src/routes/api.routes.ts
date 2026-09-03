@@ -53,7 +53,9 @@ const USER_PHOTO_EXTENSIONS = (process.env.USER_PHOTO_EXTENSIONS || 'jpg,jpeg,pn
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_CLIENT_SECRET = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
 const GOOGLE_REDIRECT_URI = (process.env.GOOGLE_REDIRECT_URI || '').trim();
-const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.events.readonly';
+// calendar.readonly cobre leitura de eventos em TODAS as agendas + listagem de agendas
+// (calendar.events.readonly nao permite CalendarList.List -> 403 insufficient scopes).
+const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 const GOOGLE_PROVIDER = 'google_calendar';
 const FRONTEND_BASE_URL = (process.env.FRONTEND_BASE_URL || 'http://localhost:5173').trim();
 
@@ -484,7 +486,7 @@ async function resolveMysqlUserIdFromSession(session: { user: SessionUser }) {
 
 async function getGoogleIntegrationByUserId(userId: number) {
   const [rows] = await mysqlPool.query(
-    `SELECT usuario_id, provider, access_token, refresh_token, access_token_expires_at
+    `SELECT usuario_id, provider, access_token, refresh_token, access_token_expires_at, scope
      FROM usuario_integracoes
      WHERE usuario_id = ? AND provider = ?
      LIMIT 1`,
@@ -1444,34 +1446,39 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
 
     const payload = (await response.json()) as { items?: any[] };
     const primaryItems = Array.isArray(payload.items) ? payload.items : [];
-    if (primaryItems.length > 0) {
-      return res.json(primaryItems);
-    }
+
+    // Junta os eventos da agenda primary com os das demais agendas do usuario
+    // (eventos pessoais costumam ficar em agendas secundarias, nao na primary).
+    const eventsById = new Map<string, any>();
+    const pushItems = (items: any[]) => {
+      for (const item of items) {
+        const key = String(item?.id || item?.iCalUID || `${item?.summary}-${item?.start?.dateTime || item?.start?.date}`);
+        if (!eventsById.has(key)) eventsById.set(key, item);
+      }
+    };
+    pushItems(primaryItems);
 
     const listResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
 
-    if (!listResponse.ok) {
-      return res.json([]);
+    if (listResponse.ok) {
+      const listPayload = (await listResponse.json()) as { items?: Array<{ id?: string; selected?: boolean; primary?: boolean }> };
+      const calendarIds = (listPayload.items || [])
+        .filter((item) => Boolean(item?.id) && item.selected !== false && !item.primary)
+        .map((item) => String(item.id))
+        .slice(0, 15);
+
+      for (const calendarId of calendarIds) {
+        const calendarResponse = await fetchCalendarEvents(calendarId, 100);
+        if (!calendarResponse.ok) continue;
+        const calendarPayload = (await calendarResponse.json()) as { items?: any[] };
+        pushItems(Array.isArray(calendarPayload.items) ? calendarPayload.items : []);
+        if (eventsById.size >= 500) break;
+      }
     }
 
-    const listPayload = (await listResponse.json()) as { items?: Array<{ id?: string; selected?: boolean }> };
-    const calendarIds = (listPayload.items || [])
-      .filter((item) => Boolean(item?.id) && item.selected !== false)
-      .map((item) => String(item.id))
-      .slice(0, 5);
-
-    const allItems: any[] = [];
-    for (const calendarId of calendarIds) {
-      const calendarResponse = await fetchCalendarEvents(calendarId, 50);
-      if (!calendarResponse.ok) continue;
-      const calendarPayload = (await calendarResponse.json()) as { items?: any[] };
-      allItems.push(...(calendarPayload.items || []));
-      if (allItems.length >= 300) break;
-    }
-
-    allItems.sort((a, b) => {
+    const allItems = Array.from(eventsById.values()).sort((a, b) => {
       const left = new Date(a?.start?.dateTime || a?.start?.date || 0).getTime();
       const right = new Date(b?.start?.dateTime || b?.start?.date || 0).getTime();
       return left - right;
@@ -1575,10 +1582,27 @@ router.get('/calendar/debug', async (req: Request, res: Response) => {
     const primary = await fetchCalendarEvents('primary', 10);
     const primaryItems = Array.isArray(primary.bodyJson?.items) ? primary.bodyJson.items : [];
 
+    // Qual conta Google esta conectada (id da agenda primary == e-mail da conta)
+    let connectedAccount: string | null = null;
+    try {
+      const meResponse = await fetch(
+        'https://www.googleapis.com/calendar/v3/calendars/primary',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (meResponse.ok) {
+        const meJson = (await meResponse.json()) as { id?: string };
+        connectedAccount = meJson?.id || null;
+      }
+    } catch {
+      // noop
+    }
+
     const debug: Record<string, any> = {
       ok: true,
       userId,
       provider: GOOGLE_PROVIDER,
+      connectedAccount,
+      grantedScope: integration.scope || null,
       hasAccessTokenInDb: Boolean(integration.access_token),
       hasRefreshTokenInDb: Boolean(integration.refresh_token),
       accessTokenExpiresAt: integration.access_token_expires_at || null,
