@@ -2,7 +2,7 @@ import type { SyntheticEvent } from 'react';
 
 const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png'];
 
-function nextExtensionUrl(currentUrl: string) {
+export function nextExtensionUrl(currentUrl: string) {
   const match = currentUrl.match(/^(.*)\.(jpg|jpeg|png)(\?.*)?$/i);
   if (!match) return null;
 

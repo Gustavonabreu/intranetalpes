@@ -1,0 +1,103 @@
+/*
+ * Fundo e cabecalho. A arte "Feliz Aniversario" faz parte da imagem (1920x1080),
+ * centralizada e com o texto branco entre y=167 e y=224. A imagem escala so pela
+ * largura e o mes usa cqw (largura do container), entao os dois andam juntos em
+ * qualquer tela. Valores em cqw = px na imagem / 1920 * 100.
+ */
+.aniv-page {
+  background-color: #c2cbd4; /* cor da borda inferior da imagem */
+  background-position: top center;
+  background-repeat: no-repeat;
+  background-size: 100% auto;
+  container-type: inline-size;
+}
+
+.aniv-header {
+  padding-top: 12.2cqw; /* ~y=234, logo abaixo de "ANIVERSARIO" */
+  margin-bottom: clamp(20px, 3cqw, 48px);
+  pointer-events: none;
+  text-align: center;
+}
+
+.aniv-page .aniv-mes {
+  color: #1e3a5f; /* mesmo tom do "feliz" manuscrito */
+  font-size: clamp(13px, 1.9cqw, 44px);
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  line-height: 1;
+  margin: 0;
+  padding-left: 0.3em; /* compensa o letter-spacing do ultimo caractere */
+  text-shadow: 0 1px 8px rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+}
+
+body.dark-mode .aniv-page .aniv-mes {
+  color: #1e3a5f;
+}
+
+/* Destaque "E hoje!" da pagina de aniversariantes */
+.aniv-confetes {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+}
+
+.aniv-confetes span {
+  animation-iteration-count: infinite;
+  animation-name: aniv-confete-cair;
+  animation-timing-function: linear;
+  border-radius: 2px;
+  height: 12px;
+  opacity: 0;
+  position: absolute;
+  top: -16px;
+  width: 7px;
+}
+
+.aniv-confetes span:nth-child(3n) {
+  border-radius: 50%;
+  height: 8px;
+  width: 8px;
+}
+
+@keyframes aniv-confete-cair {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  10% {
+    opacity: 0.85;
+  }
+  80% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(24px, 520px, 0) rotate(540deg);
+  }
+}
+
+.aniv-aro {
+  animation: aniv-aro-pulso 2.8s ease-in-out infinite;
+}
+
+@keyframes aniv-aro-pulso {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aniv-confetes {
+    display: none;
+  }
+
+  .aniv-aro {
+    animation: none;
+  }
+}

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronRight, PartyPopper } from 'lucide-react';
 import { legacyGetJson } from '../services/legacyApi';
-import { handlePhotoFallback } from '../services/photoFallback';
+import { FotoColaborador } from './FotoColaborador';
 
 type PostRecente = {
   id?: number;
@@ -51,6 +52,10 @@ function getBirthMonth(value?: string | null) {
   if (!value) return null;
   const trimmed = value.trim();
 
+  // Formato da API de funcionarios: DD/MM.
+  const dayMonth = trimmed.match(/^(\d{2})\/(\d{2})$/);
+  if (dayMonth) return Number(dayMonth[2]);
+
   // Avoid timezone shifts for MySQL DATE strings (YYYY-MM-DD).
   const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (match) {
@@ -66,6 +71,9 @@ function getBirthMonth(value?: string | null) {
 function getBirthDay(value?: string | null) {
   if (!value) return null;
   const trimmed = value.trim();
+  const dayMonth = trimmed.match(/^(\d{2})\/(\d{2})$/);
+  if (dayMonth) return Number(dayMonth[1]);
+
   const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (match) {
     const day = Number(match[3]);
@@ -259,28 +267,53 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
             </Link>
           </h3>
           {aniversariantes.length > 0 ? (
-            <ul className="space-y-3 mt-3">
+            <ul className="space-y-1.5 mt-3">
               {aniversariantes.map((item, index) => {
                 const name = getDisplayName(item.nome_formatado);
+                const day = getBirthDay(item.aniversario);
+                const isToday = day === today.getDate();
                 return (
-                  <li key={item.id || `${name}-${index}`} className="flex items-center gap-3 py-1">
-                    <img
-                      src={item.imagem_url || 'https://dummyimage.com/40x40/cccccc/333333&text=U'}
-                      alt={`Foto de ${name}`}
-                      className="w-12 h-12 rounded-full object-cover border border-gray-600 flex-shrink-0"
-                      onError={(event) =>
-                        handlePhotoFallback(
-                          event,
-                          'https://dummyimage.com/40x40/cccccc/333333&text=U'
-                        )
-                      }
-                    />
-                    <span
-                      className="text-sm font-medium truncate"
-                      style={{ color: 'var(--cor-texto-principal)' }}
+                  <li key={item.id || `${name}-${index}`}>
+                    <Link
+                      to="/aniversariantes"
+                      title={isToday ? `Hoje e aniversario de ${name}!` : `Ver aniversariantes do mes`}
+                      className={`group flex items-center gap-3 rounded-xl px-2 py-1.5 no-underline transition-colors ${
+                        isToday
+                          ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
                     >
-                      {name}
-                    </span>
+                      <FotoColaborador
+                        src={item.imagem_url}
+                        name={name}
+                        className={`w-11 h-11 rounded-full flex-shrink-0 ${
+                          isToday ? 'ring-2 ring-white' : 'border border-slate-300 dark:border-slate-600'
+                        }`}
+                        initialsClassName="text-sm"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span
+                          className="block text-sm font-medium truncate"
+                          style={isToday ? undefined : { color: 'var(--cor-texto-principal)' }}
+                        >
+                          {name}
+                        </span>
+                        {isToday ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide">
+                            <PartyPopper size={11} /> Hoje!
+                          </span>
+                        ) : null}
+                      </span>
+                      <span
+                        className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
+                          isToday
+                            ? 'bg-white/20 text-white'
+                            : 'bg-blue-50 text-blue-700 dark:bg-slate-800 dark:text-blue-300'
+                        }`}
+                      >
+                        {day ? String(day).padStart(2, '0') : '--'}/{String(today.getMonth() + 1).padStart(2, '0')}
+                      </span>
+                    </Link>
                   </li>
                 );
               })}
@@ -288,6 +321,12 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
           ) : (
             <p>Sem aniversariantes cadastrados para este mes.</p>
           )}
+          <Link
+            to="/aniversariantes"
+            className="mt-3 flex items-center justify-center gap-1 rounded-lg border border-slate-200 py-2 text-xs font-semibold text-blue-700 no-underline transition-colors hover:bg-blue-50 dark:border-slate-700 dark:text-blue-300 dark:hover:bg-slate-800"
+          >
+            Clique para ver todos <ChevronRight size={14} />
+          </Link>
         </div>
 
         <div className="widget">

@@ -1,5 +1,21 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
-import { CalendarDays, Image as ImageIcon, Youtube, X } from 'lucide-react';
+import { ChangeEvent, DragEvent, FormEvent, useEffect, useState } from 'react';
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  CalendarDays,
+  Clapperboard,
+  Image as ImageIcon,
+  ListOrdered,
+  UploadCloud,
+  Youtube,
+  X
+} from 'lucide-react';
+import defaultHeroImage from '../assets/brand/inicio_padrao.webp';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { VideoFundo } from '../components/VideoFundo';
+import mountainImage from '../assets/brand/montanha.png';
+import { validarImagemUpload } from '../utils/imagemUpload';
 import {
   LEGACY_API_BASE_URL,
   LegacyApiError,
@@ -7,15 +23,21 @@ import {
   legacyMutateJson
 } from '../services/legacyApi';
 import { getYoutubeEmbedUrl } from '../utils/youtube';
+import {
+  AdminEventosCalendario,
+  EventoIntranet,
+  NovoEventoIntranet,
+  SedeAlvo
+} from '../components/AdminEventosCalendario';
 import '../styles/admin-cms.css';
 
-type ModalType = 'imagem' | 'eventos' | 'falaAlpes' | null;
-type SedeAlvo = 'todas' | 'curitiba' | 'sao_paulo' | 'rio';
+type ModalType = 'imagem' | 'eventos' | 'falaAlpes' | 'setores' | 'sobre' | null;
 
 type IntranetConfig = {
   id?: number;
   imagem_inicial_url?: string | null;
   fala_alpes_video_url?: string | null;
+  sobre_video_url?: string | null;
 };
 
 type Noticia = {
@@ -29,14 +51,21 @@ type Noticia = {
   ativo: number;
 };
 
-type EventoIntranet = {
-  id: number;
-  titulo: string;
-  descricao?: string | null;
-  data_evento: string;
-  sede_alvo?: SedeAlvo;
-  ativo: number;
+type SetorOrdem = {
+  setor: string;
+  configurado: boolean;
 };
+
+// Imagem inicial do Dashboard (.telainicio): faixa de 450px de altura (240px <= 1024px)
+// com background-size: cover. A largura varia com a tela e a barra lateral, entao a
+// proporcao visivel vai de ~1,4:1 (celular) a ~3,8:1 (monitor grande com widgets recolhidos).
+const HERO_RECOMENDADO = { largura: 1920, altura: 720 };
+const HERO_LARGURA_MINIMA = 1600;
+const HERO_RECORTES = [
+  { label: 'Monitor grande', ratio: 3.4 },
+  { label: 'Notebook', ratio: 2 },
+  { label: 'Celular', ratio: 1.4 }
+];
 
 function asText(value: string | null | undefined) {
   return value || '';
@@ -57,7 +86,12 @@ export function AdminIntranetPage() {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
   const [heroUrl, setHeroUrl] = useState('');
+  const [heroDims, setHeroDims] = useState<{ largura: number; altura: number } | null>(null);
+  const [heroDragOver, setHeroDragOver] = useState(false);
   const [falaAlpesVideoUrl, setFalaAlpesVideoUrl] = useState('');
+  const [sobreVideoUrl, setSobreVideoUrl] = useState('');
+
+  useBodyScrollLock(activeModal !== null);
 
   const [noticias, setNoticias] = useState<Noticia[]>([]);
   const [novaNoticia, setNovaNoticia] = useState({
@@ -71,13 +105,8 @@ export function AdminIntranetPage() {
   });
 
   const [eventos, setEventos] = useState<EventoIntranet[]>([]);
-  const [novoEvento, setNovoEvento] = useState({
-    titulo: '',
-    descricao: '',
-    data_evento: '',
-    sede_alvo: 'todas' as SedeAlvo,
-    ativo: true
-  });
+
+  const [setores, setSetores] = useState<SetorOrdem[]>([]);
 
   const modulos = [
     {
@@ -97,27 +126,52 @@ export function AdminIntranetPage() {
       title: 'Fala Alpes',
       description: 'Defina o video do YouTube exibido na pagina Fala Alpes',
       icon: <Youtube size={36} />
+    },
+    {
+      id: 'setores' as const,
+      title: 'Ordem dos Setores',
+      description: 'Defina a ordem dos setores na pagina Nossa Equipe',
+      icon: <ListOrdered size={36} />
+    },
+    {
+      id: 'sobre' as const,
+      title: 'Sobre a Empresa',
+      description: 'Video de fundo da abertura da pagina Sobre a Empresa',
+      icon: <Clapperboard size={36} />
     }
   ];
+
+  function applyEventos(events: EventoIntranet[]) {
+    setEventos(
+      (events || []).map((item) => ({
+        ...item,
+        data_evento: toDateTimeLocalValue(item.data_evento),
+        sede_alvo: (item.sede_alvo || 'todas') as SedeAlvo
+      }))
+    );
+  }
+
+  // Recarrega so os eventos para nao desmontar o modal (loadAll mostra o "Carregando").
+  async function reloadEventos() {
+    applyEventos(await legacyGetJson<EventoIntranet[]>('/api/admin/intranet/eventos'));
+  }
 
   async function loadAll() {
     setLoading(true);
     setFeedback('');
     try {
-      const [config, events] = await Promise.all([
+      const [config, events, setoresOrdem] = await Promise.all([
         legacyGetJson<IntranetConfig>('/api/admin/intranet/config'),
-        legacyGetJson<EventoIntranet[]>('/api/admin/intranet/eventos')
+        legacyGetJson<EventoIntranet[]>('/api/admin/intranet/eventos'),
+        // Falha aqui nao deve derrubar o resto do painel.
+        legacyGetJson<SetorOrdem[]>('/api/admin/intranet/setores-ordem').catch(() => [])
       ]);
 
+      setSetores(setoresOrdem || []);
       setHeroUrl(resolveMediaUrl(asText(config.imagem_inicial_url)));
       setFalaAlpesVideoUrl(asText(config.fala_alpes_video_url));
-      setEventos(
-        (events || []).map((item) => ({
-          ...item,
-          data_evento: toDateTimeLocalValue(item.data_evento),
-          sede_alvo: (item.sede_alvo || 'todas') as SedeAlvo
-        }))
-      );
+      setSobreVideoUrl(asText(config.sobre_video_url));
+      applyEventos(events);
       setForbidden(false);
     } catch (error) {
       if (error instanceof LegacyApiError && error.status === 403) {
@@ -164,15 +218,21 @@ export function AdminIntranetPage() {
     return resolveMediaUrl(response.url);
   }
 
-  async function salvarConfig() {
+  async function salvarConfig(url = heroUrl) {
     try {
       await legacyMutateJson<{ success: boolean }>('PUT', '/api/admin/intranet/config', {
-        imagem_inicial_url: heroUrl.trim()
+        imagem_inicial_url: url.trim()
       });
-      setFeedback('Imagem inicial atualizada.');
+      setFeedback(url.trim() ? 'Imagem inicial atualizada.' : 'Imagem padrao restaurada.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Falha ao salvar imagem inicial.');
     }
+  }
+
+  function restaurarHeroPadrao() {
+    setHeroUrl('');
+    setHeroDims(null);
+    salvarConfig('');
   }
 
   async function salvarFalaAlpesVideo() {
@@ -191,20 +251,56 @@ export function AdminIntranetPage() {
     }
   }
 
-  async function uploadHeroImage(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  async function enviarHeroArquivo(file: File) {
+    const problema = validarImagemUpload(file);
+    if (problema) {
+      setFeedback(problema);
+      return;
+    }
     try {
       setUploading(true);
       const url = await uploadImageFile(file, 'intranet/hero');
       setHeroUrl(url);
-      setFeedback('Imagem enviada. Clique em "Salvar imagem" para confirmar.');
+      setFeedback('Imagem enviada. Confira a previa e clique em "Salvar imagem" para publicar.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Falha ao enviar imagem.');
     } finally {
       setUploading(false);
-      event.target.value = '';
     }
+  }
+
+  async function salvarSobreVideo(url = sobreVideoUrl) {
+    const trimmed = url.trim();
+    if (trimmed && !getYoutubeEmbedUrl(trimmed) && !/\.(mp4|webm)(\?.*)?$/i.test(trimmed)) {
+      setFeedback('Use um link do YouTube ou de um arquivo de video .mp4/.webm.');
+      return;
+    }
+    try {
+      await legacyMutateJson<{ success: boolean }>('PUT', '/api/admin/intranet/config', {
+        sobre_video_url: trimmed
+      });
+      setSobreVideoUrl(trimmed);
+      setFeedback(
+        trimmed
+          ? 'Video de fundo atualizado.'
+          : 'Video removido. A abertura volta a mostrar a imagem da montanha.'
+      );
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Falha ao salvar o video.');
+    }
+  }
+
+  async function uploadHeroImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) await enviarHeroArquivo(file);
+  }
+
+  function soltarHeroImagem(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault();
+    setHeroDragOver(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) enviarHeroArquivo(file);
   }
 
   async function criarNoticia(event: FormEvent) {
@@ -290,23 +386,18 @@ export function AdminIntranetPage() {
     }
   }
 
-  async function criarEvento(event: FormEvent) {
-    event.preventDefault();
+  async function criarEvento(evento: NovoEventoIntranet) {
     try {
       await legacyMutateJson<{ success: boolean }>('POST', '/api/admin/intranet/eventos', {
-        ...novoEvento
+        ...evento,
+        ativo: Boolean(evento.ativo)
       });
-      setNovoEvento({
-        titulo: '',
-        descricao: '',
-        data_evento: '',
-        sede_alvo: 'todas',
-        ativo: true
-      });
-      await loadAll();
+      await reloadEventos();
       setFeedback('Evento criado com sucesso.');
+      return true;
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Falha ao criar evento.');
+      return false;
     }
   }
 
@@ -316,37 +407,277 @@ export function AdminIntranetPage() {
         ...item,
         ativo: Boolean(item.ativo)
       });
+      await reloadEventos();
       setFeedback('Evento atualizado.');
+      return true;
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Falha ao atualizar evento.');
+      return false;
     }
   }
 
   async function excluirEvento(id: number) {
-    if (!window.confirm('Excluir este evento?')) return;
+    if (!window.confirm('Excluir este evento?')) return false;
     try {
       await legacyMutateJson<{ success: boolean }>('DELETE', `/api/admin/intranet/eventos/${id}`);
       setEventos((prev) => prev.filter((item) => item.id !== id));
       setFeedback('Evento removido.');
+      return true;
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Falha ao excluir evento.');
+      return false;
     }
   }
 
-  function renderImagemContent() {
+  function moverSetor(index: number, direcao: -1 | 1) {
+    setSetores((prev) => {
+      const destino = index + direcao;
+      if (destino < 0 || destino >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[destino]] = [next[destino], next[index]];
+      return next;
+    });
+  }
+
+  async function salvarOrdemSetores() {
+    try {
+      await legacyMutateJson<{ success: boolean }>('PUT', '/api/admin/intranet/setores-ordem', {
+        setores: setores.map((item) => item.setor)
+      });
+      setSetores((prev) => prev.map((item) => ({ ...item, configurado: true })));
+      setFeedback('Ordem dos setores atualizada.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'Falha ao salvar ordem dos setores.');
+    }
+  }
+
+  function renderSetoresContent() {
     return (
       <div className="admin-block">
-        <h3>Atualizar imagem inicial</h3>
-        <label>
-          URL da imagem
-          <input value={heroUrl} onChange={(e) => setHeroUrl(e.target.value)} />
+        <h3>Ordem dos setores - Nossa Equipe</h3>
+        <small>
+          Use as setas para definir a ordem. Setores marcados como "novo" ainda nao tinham posicao e
+          aparecem no final ate voce salvar.
+        </small>
+        <ol className="admin-order-list">
+          {setores.map((item, index) => (
+            <li className="admin-order-row" key={item.setor}>
+              <span className="admin-order-pos">{index + 1}</span>
+              <span className="admin-order-name">
+                {item.setor}
+                {!item.configurado ? <em className="admin-order-new">novo</em> : null}
+              </span>
+              <button
+                type="button"
+                className="admin-icon-btn"
+                aria-label={`Subir ${item.setor}`}
+                disabled={index === 0}
+                onClick={() => moverSetor(index, -1)}
+              >
+                <ArrowUp size={16} />
+              </button>
+              <button
+                type="button"
+                className="admin-icon-btn"
+                aria-label={`Descer ${item.setor}`}
+                disabled={index === setores.length - 1}
+                onClick={() => moverSetor(index, 1)}
+              >
+                <ArrowDown size={16} />
+              </button>
+            </li>
+          ))}
+        </ol>
+        <button
+          type="button"
+          className="admin-btn primary"
+          onClick={salvarOrdemSetores}
+          disabled={!setores.length}
+        >
+          Salvar ordem
+        </button>
+      </div>
+    );
+  }
+
+  function renderImagemContent() {
+    const previewSrc = heroUrl.trim() ? resolveMediaUrl(heroUrl.trim()) : defaultHeroImage;
+    const previewBg = { backgroundImage: `url('${previewSrc}')` };
+    const avisos: string[] = [];
+    if (heroUrl.trim() && heroDims) {
+      const ratio = heroDims.largura / heroDims.altura;
+      if (heroDims.largura < HERO_LARGURA_MINIMA) {
+        avisos.push(
+          `A imagem tem ${heroDims.largura}px de largura; em telas grandes pode ficar borrada. Use pelo menos ${HERO_LARGURA_MINIMA}px.`
+        );
+      }
+      if (ratio < 2 || ratio > 3.6) {
+        avisos.push(
+          `Proporcao ${ratio.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}:1, diferente da recomendada (8:3). Parte da imagem sera cortada; confira os recortes abaixo.`
+        );
+      }
+    }
+
+    return (
+      <div className="admin-block hero-admin">
+        <h3>Imagem inicial do Dashboard</h3>
+
+        <div className="hero-guia">
+          <p>
+            <strong>
+              Tamanho recomendado: {HERO_RECOMENDADO.largura} × {HERO_RECOMENDADO.altura} px
+            </strong>{' '}
+            (proporcao 8:3, horizontal)
+          </p>
+          <ul>
+            <li>Minimo de {HERO_LARGURA_MINIMA} px de largura para nao ficar borrada.</li>
+            <li>JPG, PNG ou WEBP, ate 5 MB.</li>
+            <li>
+              A imagem e recortada para preencher a faixa: 450 px de altura no computador e 240 px
+              em telas menores. Deixe textos, logos e rostos dentro da <b>area segura</b> central
+              (~1000 × 500 px), marcada na previa.
+            </li>
+          </ul>
+        </div>
+
+        <div className="hero-preview" style={previewBg}>
+          <div className="hero-safe">
+            <span>Area segura</span>
+          </div>
+          {!heroUrl.trim() ? <span className="hero-tag">Imagem padrao</span> : null}
+        </div>
+        {heroUrl.trim() ? (
+          <img
+            src={previewSrc}
+            alt=""
+            hidden
+            onLoad={(e) =>
+              setHeroDims({
+                largura: e.currentTarget.naturalWidth,
+                altura: e.currentTarget.naturalHeight
+              })
+            }
+            onError={() => setHeroDims(null)}
+          />
+        ) : null}
+        {heroUrl.trim() && heroDims ? (
+          <p className="hero-meta">
+            Imagem atual: {heroDims.largura} × {heroDims.altura} px
+          </p>
+        ) : null}
+        {avisos.map((aviso) => (
+          <p className="hero-aviso" key={aviso}>
+            <AlertTriangle size={16} /> {aviso}
+          </p>
+        ))}
+
+        <div className="hero-recortes">
+          {HERO_RECORTES.map((recorte) => (
+            <figure key={recorte.label}>
+              <div className="hero-recorte" style={{ ...previewBg, aspectRatio: String(recorte.ratio) }} />
+              <figcaption>{recorte.label}</figcaption>
+            </figure>
+          ))}
+        </div>
+
+        <label
+          className={`hero-drop${heroDragOver ? ' is-over' : ''}`}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setHeroDragOver(true);
+          }}
+          onDragLeave={() => setHeroDragOver(false)}
+          onDrop={soltarHeroImagem}
+        >
+          <input type="file" accept="image/png,image/jpeg,image/webp" onChange={uploadHeroImage} />
+          <UploadCloud size={28} />
+          <span>
+            <strong>Clique para escolher</strong> ou arraste a imagem aqui
+          </span>
+          <small>JPG, PNG ou WEBP · ate 5 MB · ideal 1920 × 720 px</small>
         </label>
-        <label>
-          Enviar arquivo
-          <input type="file" accept="image/*" onChange={uploadHeroImage} />
+        {uploading ? <small className="hero-meta">Enviando imagem...</small> : null}
+
+        <label className="agenda-field">
+          <span>Ou cole a URL de uma imagem</span>
+          <input
+            placeholder="https://..."
+            value={heroUrl}
+            onChange={(e) => setHeroUrl(e.target.value)}
+          />
         </label>
-        {uploading ? <small>Enviando imagem...</small> : null}
-        <button type="button" onClick={salvarConfig}>Salvar imagem</button>
+
+        <div className="agenda-form-actions">
+          <button
+            type="button"
+            className="admin-btn secondary"
+            onClick={restaurarHeroPadrao}
+            disabled={!heroUrl.trim()}
+          >
+            Usar imagem padrao
+          </button>
+          <button
+            type="button"
+            className="admin-btn primary"
+            onClick={() => salvarConfig()}
+            disabled={uploading}
+          >
+            Salvar imagem
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function renderSobreContent() {
+    return (
+      <div className="admin-block">
+        <h3>Video de fundo - Sobre a Empresa</h3>
+        <div className="hero-guia">
+          <p>
+            <strong>O video roda sem som, em loop e sem controles</strong> atras do titulo "Nosso
+            DNA", com uma camada escura por cima para o texto continuar legivel.
+          </p>
+          <ul>
+            <li>
+              Link do YouTube (pode ser <b>nao listado</b>) ou de um arquivo <b>.mp4/.webm</b>{' '}
+              hospedado.
+            </li>
+            <li>Prefira videos horizontais (16:9), de 15 a 60 segundos, sem texto importante nas bordas.</li>
+            <li>Sem video, ou para quem ativou "reduzir movimento" no sistema, aparece a imagem da montanha.</li>
+          </ul>
+        </div>
+
+        <div className="sobre-video-previa">
+          <VideoFundo url={sobreVideoUrl} poster={mountainImage} />
+          <div className="sobre-video-previa-overlay">
+            <strong>Nosso DNA</strong>
+            <span>Previa da abertura</span>
+          </div>
+        </div>
+
+        <label className="agenda-field">
+          <span>Link do video</span>
+          <input
+            placeholder="https://www.youtube.com/watch?v=... ou https://.../video.mp4"
+            value={sobreVideoUrl}
+            onChange={(e) => setSobreVideoUrl(e.target.value)}
+          />
+        </label>
+
+        <div className="agenda-form-actions">
+          <button
+            type="button"
+            className="admin-btn secondary"
+            onClick={() => salvarSobreVideo('')}
+            disabled={!sobreVideoUrl.trim()}
+          >
+            Remover video
+          </button>
+          <button type="button" className="admin-btn primary" onClick={() => salvarSobreVideo()}>
+            Salvar video
+          </button>
+        </div>
       </div>
     );
   }
@@ -431,119 +762,12 @@ export function AdminIntranetPage() {
     return (
       <div className="admin-block">
         <h3>Calendario da Sidebar</h3>
-        <form onSubmit={criarEvento} className="admin-form-grid">
-          <input
-            placeholder="Titulo do evento"
-            value={novoEvento.titulo}
-            onChange={(e) => setNovoEvento((p) => ({ ...p, titulo: e.target.value }))}
-            required
-          />
-          <input
-            type="datetime-local"
-            value={novoEvento.data_evento}
-            onChange={(e) => setNovoEvento((p) => ({ ...p, data_evento: e.target.value }))}
-            required
-          />
-          <select
-            value={novoEvento.sede_alvo}
-            onChange={(e) =>
-              setNovoEvento((p) => ({
-                ...p,
-                sede_alvo: e.target.value as SedeAlvo
-              }))
-            }
-          >
-            <option value="todas">Todas as sedes</option>
-            <option value="curitiba">Curitiba</option>
-            <option value="sao_paulo">Sao Paulo</option>
-            <option value="rio">Rio de Janeiro</option>
-          </select>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={novoEvento.ativo}
-              onChange={(e) => setNovoEvento((p) => ({ ...p, ativo: e.target.checked }))}
-            />
-            Ativo
-          </label>
-          <textarea
-            placeholder="Descricao (opcional)"
-            value={novoEvento.descricao}
-            onChange={(e) => setNovoEvento((p) => ({ ...p, descricao: e.target.value }))}
-          />
-          <button type="submit">Cadastrar evento</button>
-        </form>
-
-        {eventos.map((item) => (
-          <div className="admin-item" key={item.id}>
-            <input
-              value={item.titulo}
-              onChange={(e) =>
-                setEventos((prev) =>
-                  prev.map((ev) => (ev.id === item.id ? { ...ev, titulo: e.target.value } : ev))
-                )
-              }
-            />
-            <input
-              type="datetime-local"
-              value={toDateTimeLocalValue(item.data_evento)}
-              onChange={(e) =>
-                setEventos((prev) =>
-                  prev.map((ev) =>
-                    ev.id === item.id ? { ...ev, data_evento: e.target.value } : ev
-                  )
-                )
-              }
-            />
-            <select
-              value={item.sede_alvo || 'todas'}
-              onChange={(e) =>
-                setEventos((prev) =>
-                  prev.map((ev) =>
-                    ev.id === item.id
-                      ? { ...ev, sede_alvo: e.target.value as SedeAlvo }
-                      : ev
-                  )
-                )
-              }
-            >
-              <option value="todas">Todas as sedes</option>
-              <option value="curitiba">Curitiba</option>
-              <option value="sao_paulo">Sao Paulo</option>
-              <option value="rio">Rio de Janeiro</option>
-            </select>
-            <textarea
-              value={asText(item.descricao)}
-              onChange={(e) =>
-                setEventos((prev) =>
-                  prev.map((ev) => (ev.id === item.id ? { ...ev, descricao: e.target.value } : ev))
-                )
-              }
-            />
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={Boolean(item.ativo)}
-                onChange={(e) =>
-                  setEventos((prev) =>
-                    prev.map((ev) =>
-                      ev.id === item.id ? { ...ev, ativo: e.target.checked ? 1 : 0 } : ev
-                    )
-                  )
-                }
-              />
-              Ativo
-            </label>
-            <div className="admin-actions">
-              <button type="button" onClick={() => salvarEvento(item)}>
-                Salvar
-              </button>
-              <button type="button" className="danger" onClick={() => excluirEvento(item.id)}>
-                Excluir
-              </button>
-            </div>
-          </div>
-        ))}
+        <AdminEventosCalendario
+          eventos={eventos}
+          onCreate={criarEvento}
+          onUpdate={salvarEvento}
+          onDelete={excluirEvento}
+        />
       </div>
     );
   }
@@ -556,6 +780,10 @@ export function AdminIntranetPage() {
         return renderEventosContent();
       case 'falaAlpes':
         return renderFalaAlpesContent();
+      case 'setores':
+        return renderSetoresContent();
+      case 'sobre':
+        return renderSobreContent();
       default:
         return null;
     }
@@ -575,7 +803,10 @@ export function AdminIntranetPage() {
         {modulos.map((modulo) => (
           <button
             key={modulo.id}
-            onClick={() => setActiveModal(modulo.id)}
+            onClick={() => {
+              setFeedback('');
+              setActiveModal(modulo.id);
+            }}
             className="admin-module-card"
             type="button"
           >
@@ -595,7 +826,11 @@ export function AdminIntranetPage() {
                 <X size={18} />
               </button>
             </div>
-            <div className="admin-modal-body">{renderModalContent()}</div>
+            <div className="admin-modal-body">
+              {/* O feedback do topo da pagina fica atras do modal; repete aqui. */}
+              {feedback ? <p className="admin-feedback admin-modal-feedback">{feedback}</p> : null}
+              {renderModalContent()}
+            </div>
           </div>
         </div>
       ) : null}

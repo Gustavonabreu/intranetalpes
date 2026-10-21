@@ -50,6 +50,10 @@ const USER_PHOTO_EXTENSIONS = (process.env.USER_PHOTO_EXTENSIONS || 'jpg,jpeg,pn
   .split(',')
   .map((ext) => ext.trim().replace(/^\./, '').toLowerCase())
   .filter(Boolean);
+// Banco de onde vem o cadastro de funcionarios (pessoas/funcionarios). Hoje alpes_dev; trocar para prod via env.
+const FUNCIONARIOS_DATABASE = (process.env.FUNCIONARIOS_DATABASE || 'alpes_dev').trim();
+// Base publica para a coluna funcionarios.foto (nome de arquivo). Sem ela, usa a foto legada por codusu.
+const FUNCIONARIO_FOTO_BASE_URL = (process.env.FUNCIONARIO_FOTO_BASE_URL || '').trim();
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_CLIENT_SECRET = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
 const GOOGLE_REDIRECT_URI = (process.env.GOOGLE_REDIRECT_URI || '').trim();
@@ -256,8 +260,92 @@ async function fetchPhotoFromSource(userId: number) {
   return null;
 }
 
-function userBirthDate(row: MysqlRow) {
-  return row.data_nascimento ?? row.dtNascimento ?? null;
+function funcionariosTable(table: string) {
+  return `${mysqlPool.escapeId(FUNCIONARIOS_DATABASE)}.${mysqlPool.escapeId(table)}`;
+}
+
+async function fetchFuncionariosIntranet() {
+  const [rows] = await mysqlPool.query(
+    `SELECT f.funcionario_id, f.legado_codusu, p.nome, f.foto, c.nome AS cargo,
+            d.nome AS departamento, p.email, p.telefone,
+            DATE_FORMAT(f.data_nascimento, '%d/%m') AS aniversario
+       FROM ${funcionariosTable('funcionarios')} f
+       JOIN ${funcionariosTable('pessoas')} p ON p.pessoa_id = f.pessoa_id
+       LEFT JOIN ${funcionariosTable('funcionario_cargos')} c
+              ON c.funcionario_cargo_id = f.funcionario_cargo_id
+       LEFT JOIN ${funcionariosTable('funcionario_departamentos')} d
+              ON d.funcionario_departamento_id = f.funcionario_departamento_id
+      WHERE f.is_ativo = 1 AND f.is_intranet = 1
+      ORDER BY p.nome`
+  );
+  return rows as MysqlRow[];
+}
+
+// Ordem padrao da pagina Nossa Equipe (era fixa no SQL); editavel no admin.
+const DEFAULT_SETOR_ORDEM = [
+  'CEO',
+  'COO',
+  'NOVOS NEGÓCIOS',
+  'OPERAÇÕES',
+  'MIDIA',
+  'CRIAÇÃO',
+  'MARKETING DIGITAL',
+  'REDAÇÃO',
+  'OPEC',
+  'GENTE E GESTÃO',
+  'FACILITIES',
+  'FINANCEIRO',
+  'FISCAL',
+  'JURÍDICO',
+  'COMERCIAL',
+  'ATENDIMENTO',
+  'CONTROLADORIA',
+  'ADMINISTRATIVO',
+  'TECNOLOGIA',
+  'SECRETÁRIA',
+  'ANTENA 1',
+  'LOCUÇÃO'
+];
+
+// Compara setores ignorando acento/caixa (ex.: JURÍDICO x JURIDICO).
+function setorKey(setor: unknown) {
+  return String(setor || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toUpperCase();
+}
+
+async function fetchSetorOrdem() {
+  await ensureFeatureTables();
+  const ordem = new Map<string, number>();
+  try {
+    const [rows] = await mysqlPool.query('SELECT setor, ordem FROM intranet_setor_ordem');
+    for (const row of rows as MysqlRow[]) ordem.set(setorKey(row.setor), Number(row.ordem));
+  } catch (error) {
+    console.error('Falha ao carregar ordem dos setores:', error);
+  }
+  return ordem;
+}
+
+function compareBySetorOrdem(ordem: Map<string, number>, a: unknown, b: unknown) {
+  const keyA = setorKey(a);
+  const keyB = setorKey(b);
+  const posA = ordem.get(keyA) ?? Number.MAX_SAFE_INTEGER;
+  const posB = ordem.get(keyB) ?? Number.MAX_SAFE_INTEGER;
+  if (posA !== posB) return posA - posB;
+  if (posA !== Number.MAX_SAFE_INTEGER || keyA === keyB) return 0;
+  // Setores sem posicao: agrupados em ordem alfabetica, sem setor por ultimo.
+  if (!keyA || !keyB) return keyA ? -1 : 1;
+  return keyA.localeCompare(keyB, 'pt-BR');
+}
+
+function funcionarioImageUrl(row: MysqlRow) {
+  const foto = String(row.foto || '').trim();
+  if (foto && FUNCIONARIO_FOTO_BASE_URL) {
+    return `${normalizePhotoBaseUrl(FUNCIONARIO_FOTO_BASE_URL)}/${encodeURIComponent(foto)}`;
+  }
+  return userImageUrl({ codusu: row.legado_codusu });
 }
 
 function inferUserRoleFromRow(row: MysqlRow): 'admin' | 'user' {
@@ -613,6 +701,10 @@ function isValidYoutubeUrl(value: string) {
   return YOUTUBE_URL_PATTERN.test(value.trim());
 }
 
+function isValidVideoFileUrl(value: string) {
+  return /^https?:\/\/[^\s]+\.(mp4|webm)(\?[^\s]*)?$/i.test(value.trim());
+}
+
 async function resolveUserIdByLogin(login: string) {
   const [rows] = await mysqlPool.query(
     `SELECT codusu, id, codigo
@@ -723,6 +815,22 @@ async function ensureFeatureTables() {
       )
     `);
 
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS intranet_setor_ordem (
+        setor VARCHAR(120) NOT NULL PRIMARY KEY,
+        ordem INT NOT NULL,
+        updated_by VARCHAR(255) NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    const [ordemRows] = await mysqlPool.query('SELECT COUNT(*) AS total FROM intranet_setor_ordem');
+    if (Number((ordemRows as MysqlRow[])[0]?.total || 0) === 0) {
+      await mysqlPool.query('INSERT INTO intranet_setor_ordem (setor, ordem) VALUES ?', [
+        DEFAULT_SETOR_ORDEM.map((setor, index) => [setor, index + 1])
+      ]);
+    }
+
   } catch (error) {
     migrationFailed = true;
     console.error('Falha ao criar tabelas da intranet:', error);
@@ -820,6 +928,14 @@ async function ensureFeatureTables() {
       migrationFailed = true;
       console.error('Falha ao adicionar coluna fala_alpes_video_url em intranet_config:', error);
     }
+  }
+  try {
+    await mysqlPool.query(`ALTER TABLE intranet_config ADD COLUMN sobre_video_url TEXT NULL`);
+  } catch (error: any) {
+    if (error?.code !== 'ER_DUP_FIELDNAME') {
+      migrationFailed = true;
+      console.error('Falha ao adicionar coluna sobre_video_url em intranet_config:', error);
+    }
   } finally {
     featureTablesReady = !migrationFailed;
   }
@@ -830,7 +946,8 @@ async function fetchNoticiasFromMysql(limit = 50) {
 
   try {
     const [rows] = await mysqlPool.query(
-      `SELECT id, titulo, conteudo, autor_nome, imagem_destaque_url, data_inicio, data_fim, data_publicacao
+      `SELECT id, titulo, conteudo, autor_nome, imagem_destaque_url, DATE_FORMAT(data_inicio, '%Y-%m-%d %H:%i') AS data_inicio,
+              DATE_FORMAT(data_fim, '%Y-%m-%d %H:%i') AS data_fim, data_publicacao
        FROM intranet_noticias
        WHERE ativo = 1
          AND (data_inicio IS NULL OR data_inicio <= NOW())
@@ -1017,59 +1134,20 @@ router.post('/auth/logout', (req: Request, res: Response) => {
 // Team / photos / birthdays
 router.get('/equipe', async (req: Request, res: Response) => {
   try {
-      const [rows] = await mysqlPool.query(
-        `SELECT
-            codusu,
-            nome,
-            setor,
-            cargo,
-            email,
-            celular,
-            fone,
-            foto,
-            data_nascimento,
-            dtNascimento
-        FROM usuario
-        WHERE sts = 'ATIVO'
-        ORDER BY
-            CASE setor
-              WHEN 'CEO' THEN 1
-              WHEN 'COO' THEN 2
-              WHEN 'NOVOS NEGÓCIOS' THEN 3
-              WHEN 'OPERAÇÕES' THEN 4
-              WHEN 'MIDIA' THEN 5
-              WHEN 'CRIAÇÃO' THEN 6
-              WHEN 'MARKETING DIGITAL' THEN 7
-              WHEN 'REDAÇÃO' THEN 8
-              WHEN 'OPEC' THEN 9
-              WHEN 'GENTE E GESTÃO' THEN 10
-              WHEN 'FICILITIES' THEN 11
-              WHEN 'FINANCEIRO' THEN 12
-              WHEN 'FISCAL' THEN 13
-              WHEN 'JURÍDICO' THEN 14
-              WHEN 'COMERCIAL' THEN 15
-              WHEN 'ATENDIMENTO' THEN 16
-              WHEN 'CONTROLADORIA' THEN 17
-              WHEN 'ADMINISTRATIVO' THEN 18
-              WHEN 'TECNOLOGIA' THEN 19
-              WHEN 'SECRETÁRIA' THEN 20
-              WHEN 'ANTENA 1' THEN 21
-              WHEN 'LOCUÇÃO' THEN 22
-              ELSE 999
-            END,
-            nome ASC`
-      );
+    const [rows, setorOrdem] = await Promise.all([fetchFuncionariosIntranet(), fetchSetorOrdem()]);
+    // sort estavel: dentro do mesmo setor mantem a ordem por nome do SQL.
+    rows.sort((a, b) => compareBySetorOrdem(setorOrdem, a.departamento, b.departamento));
 
-    const data = (rows as MysqlRow[]).map((row) => ({
-      id: row.codusu,
+    const data = rows.map((row) => ({
+      id: row.funcionario_id,
       nome_formatado: row.nome,
-      setor: row.setor || '',
+      setor: row.departamento || '',
       cargo: row.cargo || '',
       email: row.email || '',
-      fone: row.fone || '',
-      telefone: row.fone || '',
-      imagem_url: userImageUrl(row),
-      aniversario: userBirthDate(row)
+      fone: row.telefone || '',
+      telefone: row.telefone || '',
+      imagem_url: funcionarioImageUrl(row),
+      aniversario: row.aniversario || null
     }));
 
     res.json(data);
@@ -1080,15 +1158,10 @@ router.get('/equipe', async (req: Request, res: Response) => {
 
 router.get('/todos-funcionarios', async (req: Request, res: Response) => {
   try {
-    const [rows] = await mysqlPool.query(
-      `SELECT codusu, nome
-       FROM usuario
-       WHERE sts = 'ATIVO'
-       ORDER BY nome ASC`
-    );
+    const rows = await fetchFuncionariosIntranet();
 
-    const data = (rows as MysqlRow[]).map((row) => ({
-      id: row.codusu,
+    const data = rows.map((row) => ({
+      id: row.funcionario_id,
       nome_formatado: row.nome
     }));
 
@@ -1205,7 +1278,7 @@ router.get('/intranet-config', async (req: Request, res: Response) => {
 
   try {
     const [rows] = await mysqlPool.query(
-      `SELECT id, imagem_inicial_url, fala_alpes_video_url, updated_by, updated_at
+      `SELECT id, imagem_inicial_url, fala_alpes_video_url, sobre_video_url, updated_by, updated_at
        FROM intranet_config
        ORDER BY id DESC
        LIMIT 1`
@@ -1802,7 +1875,7 @@ router.get('/admin/intranet/config', async (req: Request, res: Response) => {
   await ensureFeatureTables();
 
   const [rows] = await mysqlPool.query(
-    `SELECT id, imagem_inicial_url, fala_alpes_video_url, updated_by, updated_at
+    `SELECT id, imagem_inicial_url, fala_alpes_video_url, sobre_video_url, updated_by, updated_at
      FROM intranet_config
      ORDER BY id DESC
      LIMIT 1`
@@ -1817,7 +1890,7 @@ router.put('/admin/intranet/config', async (req: Request, res: Response) => {
   await ensureFeatureTables();
 
   const [rows] = await mysqlPool.query(
-    `SELECT id, imagem_inicial_url, fala_alpes_video_url
+    `SELECT id, imagem_inicial_url, fala_alpes_video_url, sobre_video_url
      FROM intranet_config
      ORDER BY id DESC
      LIMIT 1`
@@ -1839,22 +1912,34 @@ router.put('/admin/intranet/config', async (req: Request, res: Response) => {
     falaAlpesVideoUrl = rawVideoUrl || null;
   }
 
+  // Video de fundo da pagina Sobre a Empresa: YouTube ou arquivo .mp4/.webm.
+  let sobreVideoUrl = current?.sobre_video_url ?? null;
+  if (req.body?.sobre_video_url !== undefined) {
+    const rawSobreUrl = String(req.body.sobre_video_url || '').trim();
+    if (rawSobreUrl && !isValidYoutubeUrl(rawSobreUrl) && !isValidVideoFileUrl(rawSobreUrl)) {
+      return res
+        .status(400)
+        .json({ error: 'Use um link do YouTube ou de um arquivo de video .mp4/.webm.' });
+    }
+    sobreVideoUrl = rawSobreUrl || null;
+  }
+
   const videoUrlChanged =
     req.body?.fala_alpes_video_url !== undefined &&
     falaAlpesVideoUrl !== (current?.fala_alpes_video_url ?? null);
 
   if (!current) {
     await mysqlPool.query(
-      `INSERT INTO intranet_config (imagem_inicial_url, fala_alpes_video_url, updated_by)
-       VALUES (?, ?, ?)`,
-      [imagemInicialUrl, falaAlpesVideoUrl, session.user.login]
+      `INSERT INTO intranet_config (imagem_inicial_url, fala_alpes_video_url, sobre_video_url, updated_by)
+       VALUES (?, ?, ?, ?)`,
+      [imagemInicialUrl, falaAlpesVideoUrl, sobreVideoUrl, session.user.login]
     );
   } else {
     await mysqlPool.query(
       `UPDATE intranet_config
-       SET imagem_inicial_url = ?, fala_alpes_video_url = ?, updated_by = ?
+       SET imagem_inicial_url = ?, fala_alpes_video_url = ?, sobre_video_url = ?, updated_by = ?
        WHERE id = ?`,
-      [imagemInicialUrl, falaAlpesVideoUrl, session.user.login, current.id]
+      [imagemInicialUrl, falaAlpesVideoUrl, sobreVideoUrl, session.user.login, current.id]
     );
   }
 
@@ -1873,13 +1958,78 @@ router.put('/admin/intranet/config', async (req: Request, res: Response) => {
   return res.json({ success: true });
 });
 
+router.get('/admin/intranet/setores-ordem', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res);
+  if (!session) return;
+
+  try {
+    const [[rows], setorOrdem] = await Promise.all([
+      mysqlPool.query(
+        `SELECT DISTINCT TRIM(nome) AS setor
+           FROM ${funcionariosTable('funcionario_departamentos')}
+          WHERE nome IS NOT NULL AND TRIM(nome) <> ''`
+      ),
+      fetchSetorOrdem()
+    ]);
+
+    const setores = (rows as MysqlRow[])
+      .map((row) => String(row.setor))
+      .sort((a, b) => compareBySetorOrdem(setorOrdem, a, b) || a.localeCompare(b, 'pt-BR'));
+
+    return res.json(
+      setores.map((setor) => ({ setor, configurado: setorOrdem.has(setorKey(setor)) }))
+    );
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar setores.' });
+  }
+});
+
+router.put('/admin/intranet/setores-ordem', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const rawSetores: unknown[] = Array.isArray(req.body?.setores) ? req.body.setores : [];
+  const vistos = new Set<string>();
+  const setores = rawSetores
+    .map((setor) => String(setor || '').trim().slice(0, 120))
+    .filter((setor) => {
+      const key = setorKey(setor);
+      if (!key || vistos.has(key)) return false;
+      vistos.add(key);
+      return true;
+    });
+
+  if (!setores.length) {
+    return res.status(400).json({ error: 'Informe ao menos um setor.' });
+  }
+
+  const connection = await mysqlPool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.query('DELETE FROM intranet_setor_ordem');
+    await connection.query('INSERT INTO intranet_setor_ordem (setor, ordem, updated_by) VALUES ?', [
+      setores.map((setor, index) => [setor, index + 1, session.user.login])
+    ]);
+    await connection.commit();
+  } catch (error: any) {
+    await connection.rollback();
+    return res.status(500).json({ error: error?.message || 'Falha ao salvar ordem dos setores.' });
+  } finally {
+    connection.release();
+  }
+
+  return res.json({ success: true });
+});
+
 router.get('/admin/intranet/noticias', async (req: Request, res: Response) => {
   const session = await requireAdmin(req, res);
   if (!session) return;
   await ensureFeatureTables();
 
   const [rows] = await mysqlPool.query(
-    `SELECT id, titulo, conteudo, autor_nome, imagem_destaque_url, data_inicio, data_fim, data_publicacao, ativo
+    `SELECT id, titulo, conteudo, autor_nome, imagem_destaque_url, DATE_FORMAT(data_inicio, '%Y-%m-%d %H:%i') AS data_inicio,
+            DATE_FORMAT(data_fim, '%Y-%m-%d %H:%i') AS data_fim, data_publicacao, ativo
      FROM intranet_noticias
      ORDER BY data_publicacao DESC, id DESC`
   );
@@ -1965,8 +2115,11 @@ router.get('/admin/intranet/eventos', async (req: Request, res: Response) => {
   if (!session) return;
   await ensureFeatureTables();
 
+  // Data como texto local: evita o Date do mysql2 virar ISO UTC e deslocar o horario no admin.
   const [rows] = await mysqlPool.query(
-    `SELECT id, titulo, descricao, data_evento, sede_alvo, ativo
+    `SELECT id, titulo, descricao,
+            DATE_FORMAT(data_evento, '%Y-%m-%d %H:%i:%s') AS data_evento,
+            sede_alvo, ativo
      FROM intranet_eventos
      ORDER BY data_evento ASC, id DESC`
   );

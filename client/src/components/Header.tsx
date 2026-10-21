@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useNotifications } from '../notifications/NotificationsProvider';
 import { handlePhotoFallback } from '../services/photoFallback';
+import { SISTEMAS } from '../config/sistemas';
+import { ApexLogo } from './ApexLogo';
 import logoAlpes from '../assets/brand/logo-alpes-white.png';
 
 type HeaderProps = {
@@ -23,6 +25,7 @@ export function Header({ title }: HeaderProps) {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [sistemasOpen, setSistemasOpen] = useState(false);
 
   const userName = user?.nome_completo || 'Usuario';
   const userAvatar = user?.imagem_url || 'https://dummyimage.com/40x40/cccccc/333333&text=U';
@@ -36,6 +39,7 @@ export function Header({ title }: HeaderProps) {
     function closeOverlays() {
       setMenuOpen(false);
       setNotifOpen(false);
+      setSistemasOpen(false);
     }
 
     window.addEventListener('click', closeOverlays);
@@ -106,12 +110,79 @@ export function Header({ title }: HeaderProps) {
           </div>
         </div>
 
+        <div className="sistemas-container" onClick={(event) => event.stopPropagation()}>
+          <button
+            className="header-btn"
+            type="button"
+            aria-label="Acessar outros sistemas"
+            aria-expanded={sistemasOpen}
+            title="Sistemas Alpes"
+            onClick={() => {
+              setNotifOpen(false);
+              setSistemasOpen((current) => !current);
+            }}
+          >
+            <svg className="sistemas-grade" viewBox="0 0 24 24" aria-hidden="true">
+              {[4, 12, 20].map((cy) =>
+                [4, 12, 20].map((cx) => <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="2.4" />)
+              )}
+            </svg>
+          </button>
+
+          <div className={`sistemas-dropdown ${sistemasOpen ? 'visivel' : ''}`}>
+            <div className="sistemas-dropdown-head">
+              <strong>Sistemas Alpes</strong>
+              <span>Acesso rapido</span>
+            </div>
+            <ul className="sistemas-lista">
+              {SISTEMAS.map((sistema) => {
+                const logo = (
+                  <ApexLogo
+                    svg={sistema.logo}
+                    idPrefix={`logo-${sistema.id}`}
+                    className="sistema-logo"
+                  />
+                );
+                return (
+                  <li key={sistema.id}>
+                    {sistema.url ? (
+                      <a
+                        href={sistema.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="sistema-item"
+                        aria-label={`Abrir ${sistema.nome} em nova aba`}
+                        title={`Abrir ${sistema.nome}`}
+                        onClick={() => setSistemasOpen(false)}
+                      >
+                        {logo}
+                        <i className="fas fa-arrow-up-right-from-square sistema-externo" />
+                      </a>
+                    ) : (
+                      <span
+                        className="sistema-item desabilitado"
+                        aria-label={`${sistema.nome}: link ainda nao configurado`}
+                        title="Link ainda nao configurado"
+                      >
+                        {logo}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+
         <div className="notificacao-container" onClick={(event) => event.stopPropagation()}>
           <button
             className="header-btn"
             type="button"
             aria-label="Notificacoes"
-            onClick={() => setNotifOpen((current) => !current)}
+            onClick={() => {
+              setSistemasOpen(false);
+              setNotifOpen((current) => !current);
+            }}
           >
             <i className="fas fa-bell" />
             {unreadCount > 0 ? (

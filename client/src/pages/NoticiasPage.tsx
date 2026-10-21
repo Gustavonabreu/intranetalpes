@@ -1,4 +1,5 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { useNotifications } from '../notifications/NotificationsProvider';
 import {
@@ -6,6 +7,8 @@ import {
   legacyGetJson,
   legacyMutateJson
 } from '../services/legacyApi';
+import { NOTICIA_VAZIA, NoticiaForm, NoticiaFormValues } from '../components/NoticiaForm';
+import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import '../styles/admin-cms.css';
 
 type Noticia = {
@@ -20,16 +23,6 @@ type Noticia = {
   ativo?: number;
 };
 
-type NovaNoticia = {
-  titulo: string;
-  conteudo: string;
-  autor_nome: string;
-  imagem_destaque_url: string;
-  data_inicio: string;
-  data_fim: string;
-  ativo: boolean;
-};
-
 export function NoticiasPage() {
   const { isAdmin, user } = useAuth();
   const { isRead, markAsRead, reload: reloadNotificacoes } = useNotifications();
@@ -38,18 +31,11 @@ export function NoticiasPage() {
   const [error, setError] = useState('');
   const [selectedNoticia, setSelectedNoticia] = useState<Noticia | null>(null);
   const [adminFeedback, setAdminFeedback] = useState('');
-  const [uploading, setUploading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingNoticia, setEditingNoticia] = useState<Noticia | null>(null);
-  const [novaNoticia, setNovaNoticia] = useState<NovaNoticia>({
-    titulo: '',
-    conteudo: '',
-    autor_nome: '',
-    imagem_destaque_url: '',
-    data_inicio: '',
-    data_fim: '',
-    ativo: true
-  });
+  const autorPadrao = user?.nome_completo || 'Admin';
+
+  useBodyScrollLock(Boolean(selectedNoticia || editingNoticia));
 
   function asText(value: string | null | undefined) {
     return value || '';
@@ -136,28 +122,20 @@ export function NoticiasPage() {
     reloadNotificacoes();
   }
 
-  async function criarNoticia(event: FormEvent) {
-    event.preventDefault();
+  async function criarNoticia(values: NoticiaFormValues) {
     setAdminFeedback('');
     try {
       await legacyMutateJson<{ success: boolean }>('POST', '/api/admin/intranet/noticias', {
-        ...novaNoticia,
-        autor_nome: novaNoticia.autor_nome.trim() || user?.nome_completo || 'Admin'
-      });
-      setNovaNoticia({
-        titulo: '',
-        conteudo: '',
-        autor_nome: '',
-        imagem_destaque_url: '',
-        data_inicio: '',
-        data_fim: '',
-        ativo: true
+        ...values,
+        autor_nome: values.autor_nome.trim() || autorPadrao
       });
       setShowCreateForm(false);
       await refreshNoticias();
       setAdminFeedback('Noticia criada com sucesso.');
+      return true;
     } catch (err) {
       setAdminFeedback(err instanceof Error ? err.message : 'Falha ao criar noticia.');
+      return false;
     }
   }
 
@@ -174,22 +152,16 @@ export function NoticiasPage() {
   }
 
   function openEditModal(noticia: Noticia) {
-    setEditingNoticia({
-      ...noticia,
-      data_inicio: toDateTimeLocalValue(noticia.data_inicio),
-      data_fim: toDateTimeLocalValue(noticia.data_fim)
-    });
-    document.body.classList.add('modal-open');
+    setAdminFeedback('');
+    setEditingNoticia(noticia);
   }
 
   function closeEditModal() {
     setEditingNoticia(null);
-    document.body.classList.remove('modal-open');
   }
 
-  async function salvarEdicaoNoticia(event: FormEvent) {
-    event.preventDefault();
-    if (!editingNoticia?.id) return;
+  async function salvarEdicaoNoticia(values: NoticiaFormValues) {
+    if (!editingNoticia?.id) return false;
     setAdminFeedback('');
 
     try {
@@ -197,59 +169,39 @@ export function NoticiasPage() {
         'PUT',
         `/api/admin/intranet/noticias/${editingNoticia.id}`,
         {
-          ...editingNoticia,
-          ativo: Boolean(editingNoticia.ativo ?? 1)
+          ...values,
+          autor_nome: values.autor_nome.trim() || autorPadrao
         }
       );
       await refreshNoticias();
       setAdminFeedback('Noticia atualizada.');
       closeEditModal();
+      return true;
     } catch (err) {
       setAdminFeedback(err instanceof Error ? err.message : 'Falha ao atualizar noticia.');
+      return false;
     }
   }
 
-  async function uploadNovaNoticiaImagem(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    try {
-      setUploading(true);
-      const url = await uploadImageFile(file);
-      setNovaNoticia((prev) => ({ ...prev, imagem_destaque_url: url }));
-      setAdminFeedback('Imagem da noticia enviada.');
-    } catch (err) {
-      setAdminFeedback(err instanceof Error ? err.message : 'Falha ao enviar imagem.');
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
-  }
-
-  async function uploadNoticiaEdicaoImagem(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file || !editingNoticia) return;
-    try {
-      setUploading(true);
-      const url = await uploadImageFile(file);
-      setEditingNoticia((prev) => (prev ? { ...prev, imagem_destaque_url: url } : prev));
-      setAdminFeedback('Imagem da noticia enviada.');
-    } catch (err) {
-      setAdminFeedback(err instanceof Error ? err.message : 'Falha ao enviar imagem.');
-    } finally {
-      setUploading(false);
-      event.target.value = '';
-    }
+  function noticiaParaForm(noticia: Noticia): NoticiaFormValues {
+    return {
+      titulo: noticia.titulo || '',
+      conteudo: noticia.conteudo || '',
+      autor_nome: asText(noticia.autor_nome),
+      imagem_destaque_url: asText(noticia.imagem_destaque_url),
+      data_inicio: toDateTimeLocalValue(noticia.data_inicio),
+      data_fim: toDateTimeLocalValue(noticia.data_fim),
+      ativo: Boolean(noticia.ativo ?? 1)
+    };
   }
 
   function openNoticiaModal(noticia: Noticia) {
     setSelectedNoticia(noticia);
     if (noticia.id) markAsRead(noticia.id);
-    document.body.classList.add('modal-open');
   }
 
   function closeNoticiaModal() {
     setSelectedNoticia(null);
-    document.body.classList.remove('modal-open');
   }
 
   return (
@@ -262,73 +214,30 @@ export function NoticiasPage() {
         <section className="noticias-admin-panel admin-block">
           <div className="noticias-admin-head">
             <h3>Gestao de Noticias</h3>
-            <button type="button" onClick={() => setShowCreateForm((prev) => !prev)}>
-              {showCreateForm ? 'Fechar cadastro' : 'Adicionar noticia'}
-            </button>
+            {showCreateForm ? null : (
+              <button
+                type="button"
+                className="admin-btn primary noticias-admin-add"
+                onClick={() => {
+                  setAdminFeedback('');
+                  setShowCreateForm(true);
+                }}
+              >
+                <Plus size={16} /> Adicionar noticia
+              </button>
+            )}
           </div>
-          {adminFeedback ? <p className="admin-feedback">{adminFeedback}</p> : null}
+          {adminFeedback && !editingNoticia ? <p className="admin-feedback">{adminFeedback}</p> : null}
 
           {showCreateForm ? (
-            <form onSubmit={criarNoticia} className="admin-form-grid">
-              <input
-                placeholder="Titulo"
-                value={novaNoticia.titulo}
-                onChange={(e) => setNovaNoticia((prev) => ({ ...prev, titulo: e.target.value }))}
-                required
-              />
-              <input
-                placeholder="Autor"
-                value={novaNoticia.autor_nome}
-                onChange={(e) =>
-                  setNovaNoticia((prev) => ({ ...prev, autor_nome: e.target.value }))
-                }
-              />
-              <input
-                placeholder="URL da imagem"
-                value={novaNoticia.imagem_destaque_url}
-                onChange={(e) =>
-                  setNovaNoticia((prev) => ({
-                    ...prev,
-                    imagem_destaque_url: e.target.value
-                  }))
-                }
-              />
-              <input
-                type="datetime-local"
-                value={novaNoticia.data_inicio}
-                onChange={(e) =>
-                  setNovaNoticia((prev) => ({ ...prev, data_inicio: e.target.value }))
-                }
-              />
-              <input
-                type="datetime-local"
-                value={novaNoticia.data_fim}
-                onChange={(e) =>
-                  setNovaNoticia((prev) => ({ ...prev, data_fim: e.target.value }))
-                }
-              />
-              <input type="file" accept="image/*" onChange={uploadNovaNoticiaImagem} />
-              <textarea
-                placeholder="Conteudo"
-                value={novaNoticia.conteudo}
-                onChange={(e) =>
-                  setNovaNoticia((prev) => ({ ...prev, conteudo: e.target.value }))
-                }
-                required
-              />
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={novaNoticia.ativo}
-                  onChange={(e) =>
-                    setNovaNoticia((prev) => ({ ...prev, ativo: e.target.checked }))
-                  }
-                />
-                Ativa
-              </label>
-              {uploading ? <small>Enviando imagem...</small> : null}
-              <button type="submit">Publicar noticia</button>
-            </form>
+            <NoticiaForm
+              modo="criar"
+              inicial={NOTICIA_VAZIA}
+              autorPadrao={autorPadrao}
+              uploadImagem={uploadImageFile}
+              onSubmit={criarNoticia}
+              onCancel={() => setShowCreateForm(false)}
+            />
           ) : null}
         </section>
       ) : null}
@@ -403,84 +312,31 @@ export function NoticiasPage() {
       ) : null}
 
       {editingNoticia ? (
-        <div className="modal" style={{ display: 'block' }} onClick={closeEditModal}>
-          <div className="modal-content admin-item" onClick={(event) => event.stopPropagation()}>
-            <span className="close-button" onClick={closeEditModal}>
-              &times;
-            </span>
-            <h2>Editar noticia</h2>
-            <form className="admin-form-grid" onSubmit={salvarEdicaoNoticia}>
-              <input
-                value={editingNoticia.titulo}
-                onChange={(e) =>
-                  setEditingNoticia((prev) => (prev ? { ...prev, titulo: e.target.value } : prev))
-                }
-                required
+        <div className="admin-modal-overlay" onClick={closeEditModal}>
+          <div
+            className="admin-modal-card noticia-edit-card"
+            role="dialog"
+            aria-label="Editar noticia"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="admin-modal-head">
+              <span>Editar noticia</span>
+              <button type="button" className="admin-modal-close" onClick={closeEditModal}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="admin-modal-body">
+              {adminFeedback ? <p className="admin-feedback admin-modal-feedback">{adminFeedback}</p> : null}
+              <NoticiaForm
+                key={editingNoticia.id}
+                modo="editar"
+                inicial={noticiaParaForm(editingNoticia)}
+                autorPadrao={autorPadrao}
+                uploadImagem={uploadImageFile}
+                onSubmit={salvarEdicaoNoticia}
+                onCancel={closeEditModal}
               />
-              <input
-                value={asText(editingNoticia.autor_nome)}
-                onChange={(e) =>
-                  setEditingNoticia((prev) =>
-                    prev ? { ...prev, autor_nome: e.target.value } : prev
-                  )
-                }
-              />
-              <input
-                value={asText(editingNoticia.imagem_destaque_url)}
-                onChange={(e) =>
-                  setEditingNoticia((prev) =>
-                    prev ? { ...prev, imagem_destaque_url: e.target.value } : prev
-                  )
-                }
-              />
-              <input
-                type="datetime-local"
-                value={toDateTimeLocalValue(editingNoticia.data_inicio)}
-                onChange={(e) =>
-                  setEditingNoticia((prev) =>
-                    prev ? { ...prev, data_inicio: e.target.value } : prev
-                  )
-                }
-              />
-              <input
-                type="datetime-local"
-                value={toDateTimeLocalValue(editingNoticia.data_fim)}
-                onChange={(e) =>
-                  setEditingNoticia((prev) =>
-                    prev ? { ...prev, data_fim: e.target.value } : prev
-                  )
-                }
-              />
-              <input type="file" accept="image/*" onChange={uploadNoticiaEdicaoImagem} />
-              <textarea
-                value={editingNoticia.conteudo}
-                onChange={(e) =>
-                  setEditingNoticia((prev) =>
-                    prev ? { ...prev, conteudo: e.target.value } : prev
-                  )
-                }
-                required
-              />
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={Boolean(editingNoticia.ativo ?? 1)}
-                  onChange={(e) =>
-                    setEditingNoticia((prev) =>
-                      prev ? { ...prev, ativo: e.target.checked ? 1 : 0 } : prev
-                    )
-                  }
-                />
-                Ativa
-              </label>
-              {uploading ? <small>Enviando imagem...</small> : null}
-              <div className="admin-actions">
-                <button type="submit">Salvar</button>
-                <button type="button" className="danger" onClick={closeEditModal}>
-                  Cancelar
-                </button>
-              </div>
-            </form>
+            </div>
           </div>
         </div>
       ) : null}

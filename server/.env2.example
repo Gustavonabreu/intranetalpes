@@ -43,3 +43,8 @@ USER_PHOTO_EXTENSIONS=jpg,jpeg,png
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=
+
+# Cadastro de funcionarios (pessoas/funcionarios). Trocar para o banco de prod quando migrar.
+FUNCIONARIOS_DATABASE=alpes_dev
+# Base publica da coluna funcionarios.foto (opcional; sem ela usa a foto legada por codusu)
+FUNCIONARIO_FOTO_BASE_URL=

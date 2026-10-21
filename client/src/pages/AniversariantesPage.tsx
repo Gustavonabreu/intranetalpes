@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Cake, PartyPopper, Gift } from 'lucide-react';
+import { Cake, PartyPopper } from 'lucide-react';
 import { legacyGetJson } from '../services/legacyApi';
-import { handlePhotoFallback } from '../services/photoFallback';
+import { FotoColaborador } from '../components/FotoColaborador';
 import aniversariantesBg from '../assets/brand/aniversariantes.png';
+import '../styles/aniversariantes.css';
 
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Autoplay } from 'swiper/modules';
@@ -15,9 +16,29 @@ type Funcionario = {
   id?: number;
   nome_formatado?: string;
   cargo?: string;
+  setor?: string;
   aniversario?: string;
   imagem_url?: string;
 };
+
+const CONFETES = [
+  { left: '4%', color: '#2563eb', delay: '0s', duration: '7s' },
+  { left: '11%', color: '#22d3ee', delay: '1.8s', duration: '8.5s' },
+  { left: '19%', color: '#f59e0b', delay: '0.6s', duration: '6.5s' },
+  { left: '27%', color: '#ec4899', delay: '2.6s', duration: '9s' },
+  { left: '36%', color: '#2563eb', delay: '1.2s', duration: '7.5s' },
+  { left: '45%', color: '#22d3ee', delay: '3.4s', duration: '8s' },
+  { left: '55%', color: '#f59e0b', delay: '0.3s', duration: '9.5s' },
+  { left: '64%', color: '#ec4899', delay: '2.1s', duration: '7s' },
+  { left: '72%', color: '#2563eb', delay: '1s', duration: '8.5s' },
+  { left: '81%', color: '#22d3ee', delay: '2.9s', duration: '6.8s' },
+  { left: '89%', color: '#f59e0b', delay: '0.9s', duration: '8.2s' },
+  { left: '96%', color: '#ec4899', delay: '3.8s', duration: '7.6s' }
+];
+
+function toTitleCase(text: string) {
+  return text.toLowerCase().replace(/(^|\s)\S/g, (char) => char.toUpperCase());
+}
 
 const MESES = [
   'Janeiro',
@@ -34,28 +55,29 @@ const MESES = [
   'Dezembro'
 ];
 
-function getBirthdayDay(birthday?: string) {
+// Aceita DD/MM (API de funcionarios) e YYYY-MM-DD.
+function parseBirthday(birthday?: string) {
   if (!birthday) return null;
 
-  const parts = birthday.split('-');
-  if (parts.length < 3) return null;
+  const trimmed = birthday.trim();
+  const dayMonth = trimmed.match(/^(\d{2})\/(\d{2})$/);
+  if (dayMonth) return { day: Number(dayMonth[1]), month: Number(dayMonth[2]) };
 
-  const day = parseInt(parts[2], 10);
+  const iso = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return { day: Number(iso[3]), month: Number(iso[2]) };
 
-  return Number.isNaN(day) ? null : day;
+  return null;
+}
+
+function getBirthdayDay(birthday?: string) {
+  return parseBirthday(birthday)?.day ?? null;
 }
 
 function isBirthdayInCurrentMonth(birthday?: string) {
-  if (!birthday) return false;
+  const parsed = parseBirthday(birthday);
+  if (!parsed) return false;
 
-  const parts = birthday.split('-');
-  if (parts.length < 3) return false;
-
-  const month = parseInt(parts[1], 10) - 1;
-
-  if (Number.isNaN(month)) return false;
-
-  return month === new Date().getMonth();
+  return parsed.month - 1 === new Date().getMonth();
 }
 
 function isBirthdayToday(birthday?: string) {
@@ -117,54 +139,15 @@ export function AniversariantesPage() {
 
   return (
     <div
-      className="relative py-8 md:py-10 px-4 md:px-6"
-      style={{
-        backgroundImage: `url('${aniversariantesBg}')`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
+      className="aniv-page relative pb-8 md:pb-10"
+      style={{ backgroundImage: `url('${aniversariantesBg}')` }}
     >
-      <div className="max-w-7xl mx-auto">
-        <div
-          className="
-            relative
-            w-full
-            aspect-[16/4]
-            min-h-[clamp(120px,18vw,220px)]
-          "
-        >
-          <div
-            className="
-              absolute
-              left-1/2
-              -translate-x-1/2
-              top-[56%]
-              sm:top-[57%]
-              md:top-[58%]
-              lg:top-[59%]
-              xl:top-[60%]
-              z-20
-              text-center
-              pointer-events-none
-            "
-          >
-            <h2
-              className="
-                text-white
-                uppercase
-                font-black
-                tracking-wider
-                drop-shadow-lg
-                text-2xl
-                sm:text-3xl
-                md:text-4xl
-              "
-            >
-              {mesAtual}
-            </h2>
-          </div>
-        </div>
+      {/* Mes ancorado a arte "Feliz Aniversario" da imagem (ver aniversariantes.css) */}
+      <header className="aniv-header">
+        <h2 className="aniv-mes">{mesAtual}</h2>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 md:px-6">
 
         {loading && (
           <p className="text-slate-600 text-xl text-center dark:text-slate-300">
@@ -176,36 +159,83 @@ export function AniversariantesPage() {
 
         {/* Destaque: aniversariantes de hoje */}
         {!loading && !error && aniversariantesHoje.length > 0 && (
-          <div className="mb-12 rounded-3xl bg-gradient-to-r from-blue-600 to-cyan-500 p-6 md:p-8 shadow-xl text-white">
-            <div className="flex items-center gap-3 mb-5">
-              <Gift size={28} />
-              <h2 className="text-2xl font-black">É hoje! 🎉</h2>
+          <section className="relative mx-auto mb-12 max-w-5xl overflow-hidden rounded-[28px] bg-white/90 px-6 pb-8 pt-9 shadow-2xl ring-1 ring-white/70 backdrop-blur-md md:px-10 dark:bg-slate-900/85 dark:ring-slate-700">
+            <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-blue-600 via-cyan-400 to-blue-600" />
+            <div className="aniv-confetes" aria-hidden="true">
+              {CONFETES.map((confete, index) => (
+                <span
+                  key={index}
+                  style={{
+                    left: confete.left,
+                    background: confete.color,
+                    animationDelay: confete.delay,
+                    animationDuration: confete.duration
+                  }}
+                />
+              ))}
             </div>
-            <div className="flex flex-wrap gap-4">
+
+            <header className="relative mb-8 text-center">
+              <span className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white shadow-md">
+                <PartyPopper size={14} /> É hoje!
+              </span>
+              <h2 className="mt-4 text-2xl font-black text-slate-800 md:text-3xl dark:text-slate-100">
+                {aniversariantesHoje.length === 1
+                  ? `Feliz aniversário, ${toTitleCase(
+                      (aniversariantesHoje[0].nome_formatado || 'Colaborador').split(/\s+/)[0]
+                    )}!`
+                  : `Hoje temos ${aniversariantesHoje.length} aniversariantes!`}
+              </h2>
+              <p className="mt-1 text-sm font-medium text-slate-500 dark:text-slate-400">
+                {toTitleCase(
+                  new Date().toLocaleDateString('pt-BR', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long'
+                  })
+                )}
+              </p>
+            </header>
+
+            <div className="relative flex flex-wrap justify-center gap-6">
               {aniversariantesHoje.map((func, index) => {
                 const name = func.nome_formatado || 'Colaborador';
+                const detalhe = [func.cargo, func.setor].filter(Boolean).join(' · ');
                 return (
-                  <div
+                  <article
                     key={func.id || `hoje-${name}-${index}`}
-                    className="flex items-center gap-3 rounded-2xl bg-white/15 backdrop-blur px-4 py-3"
+                    className="flex w-full max-w-[300px] flex-col items-center rounded-3xl bg-gradient-to-b from-blue-50 to-white px-6 pb-6 pt-7 text-center shadow-lg ring-1 ring-blue-100 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-700"
                   >
-                    <img
-                      src={func.imagem_url || 'https://dummyimage.com/80x80/cccccc/333333&text=U'}
-                      alt={`Foto de ${name}`}
-                      className="w-12 h-12 rounded-full object-cover object-top ring-2 ring-white/70"
-                      onError={(event) =>
-                        handlePhotoFallback(
-                          event,
-                          'https://dummyimage.com/80x80/cccccc/333333&text=U'
-                        )
-                      }
-                    />
-                    <span className="font-bold uppercase text-sm">{name}</span>
-                  </div>
+                    <div className="relative mb-5">
+                      <div className="aniv-aro rounded-full bg-gradient-to-tr from-blue-600 via-cyan-400 to-blue-600 p-1 shadow-xl">
+                        <FotoColaborador
+                          src={func.imagem_url}
+                          name={name}
+                          className="h-32 w-32 rounded-full border-4 border-white dark:border-slate-900"
+                          initialsClassName="text-4xl"
+                        />
+                      </div>
+                      <span className="absolute -bottom-1 -right-1 flex h-10 w-10 items-center justify-center rounded-full bg-amber-400 text-white shadow-lg ring-4 ring-white dark:ring-slate-900">
+                        <Cake size={18} />
+                      </span>
+                    </div>
+
+                    <h3 className="text-lg font-black uppercase leading-tight text-slate-800 dark:text-slate-100">
+                      {name}
+                    </h3>
+                    {detalhe ? (
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {detalhe}
+                      </p>
+                    ) : null}
+                    <p className="mt-4 rounded-full bg-blue-600/10 px-4 py-1.5 text-sm font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                      Parabéns! Muitas felicidades 🎉
+                    </p>
+                  </article>
                 );
               })}
             </div>
-          </div>
+          </section>
         )}
 
         {!loading && !error && aniversariantesDoMes.length === 0 && (
@@ -271,19 +301,11 @@ export function AniversariantesPage() {
                       )}
 
                       <div className="aspect-square bg-slate-200 overflow-hidden dark:bg-slate-700">
-                        <img
-                          src={
-                            func.imagem_url ||
-                            'https://dummyimage.com/600x600/cccccc/333333&text=U'
-                          }
-                          alt={`Foto de ${name}`}
-                          className="w-full h-full object-cover object-top transition-transform duration-500 hover:scale-105"
-                          onError={(event) =>
-                            handlePhotoFallback(
-                              event,
-                              'https://dummyimage.com/600x600/cccccc/333333&text=U'
-                            )
-                          }
+                        <FotoColaborador
+                          src={func.imagem_url}
+                          name={name}
+                          className="w-full h-full transition-transform duration-500 hover:scale-105"
+                          initialsClassName="text-8xl"
                         />
                       </div>
 
