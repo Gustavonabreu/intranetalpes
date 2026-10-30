@@ -276,6 +276,42 @@ a.sistema-item:hover .sistema-externo {
     background-color: #e74c3c;
 }
 
+/* Avisos so do sino (ex.: resultado de sorteio): foto do vencedor sobre o icone de trofeu */
+.notificacao-aviso-icone {
+    position: relative;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #fef3c7;
+    color: #b45309;
+    font-size: 0.85em;
+    overflow: hidden;
+}
+
+.notificacao-aviso-icone img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.notificacao-item-mensagem {
+    margin: 6px 0 0;
+    font-weight: 400;
+    font-size: 0.92em;
+    line-height: 1.4;
+    color: var(--cor-texto-secundario);
+}
+
+.notificacao-item.notificacao-aviso {
+    cursor: default;
+}
+
 .notificacao-item-meta {
     display: flex;
     align-items: center;

@@ -7,11 +7,13 @@ export const LEGACY_API_BASE_URL = (import.meta.env.VITE_LEGACY_API_URL || fallb
 
 export class LegacyApiError extends Error {
   status: number;
+  code?: string;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string) {
     super(message);
     this.name = 'LegacyApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -37,6 +39,9 @@ async function primeCsrfToken() {
   }
 }
 
+// Disparado quando o backend recusa a chamada por sessao expirada; o AuthProvider mostra o aviso.
+export const SESSAO_EXPIRADA_EVENTO = 'intranet:sessao-expirada';
+
 export async function legacyRequestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${LEGACY_API_BASE_URL}${path}`, {
     credentials: 'include',
@@ -44,10 +49,17 @@ export async function legacyRequestJson<T>(path: string, init?: RequestInit): Pr
   });
 
   if (!response.ok) {
-    const errorPayload = (await response.json().catch(() => ({}))) as { error?: string };
+    const errorPayload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      code?: string;
+    };
+    if (errorPayload.code === 'SESSAO_EXPIRADA') {
+      window.dispatchEvent(new Event(SESSAO_EXPIRADA_EVENTO));
+    }
     throw new LegacyApiError(
       errorPayload.error || `Request failed: ${response.status} ${response.statusText}`,
-      response.status
+      response.status,
+      errorPayload.code
     );
   }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import clientesMapImage from '../assets/brand/clientes-map.png';
-import defaultHeroImage from '../assets/brand/inicio_padrao.webp';
+import defaultHeroImage from '../assets/brand/inicio_padrao.png';
 import { LEGACY_API_BASE_URL, LegacyApiError, legacyGetJson } from '../services/legacyApi';
 
 type CalendarEvent = {
@@ -60,10 +60,14 @@ function toDateKey(date: Date) {
 function parseCalendarEvent(event: CalendarEvent, index: number): ParsedCalendarEvent | null {
   const rawStart = event.start?.dateTime || event.start?.date;
   if (!rawStart) return null;
-  const date = new Date(rawStart);
+  const isAllDay = Boolean(event.start?.date && !event.start?.dateTime);
+  // "2026-10-05" (dia inteiro) com new Date() vira meia-noite UTC = dia 4 no Brasil: monta em hora local.
+  const diaInteiro = isAllDay ? rawStart.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+  const date = diaInteiro
+    ? new Date(Number(diaInteiro[1]), Number(diaInteiro[2]) - 1, Number(diaInteiro[3]))
+    : new Date(rawStart);
   if (!Number.isFinite(date.getTime())) return null;
 
-  const isAllDay = Boolean(event.start?.date && !event.start?.dateTime);
   const timeLabel = isAllDay
     ? 'Dia inteiro'
     : date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -85,6 +89,7 @@ export function DashboardPage() {
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const [calendarNeedsConnect, setCalendarNeedsConnect] = useState(false);
+  const [calendarCarregado, setCalendarCarregado] = useState(false);
   const [calendarMessage, setCalendarMessage] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
@@ -123,6 +128,7 @@ export function DashboardPage() {
         if (mounted) {
           setEvents(eventsData || []);
           setCalendarNeedsConnect(false);
+          setCalendarCarregado(true);
         }
       } catch (error) {
         if (!mounted) return;
@@ -133,8 +139,12 @@ export function DashboardPage() {
           setCalendarNeedsConnect(needsConnect);
           if (error.status === 503) {
             setCalendarMessage('Google Calendar nao configurado no backend.');
+          } else if (error.code === 'GOOGLE_RECONECTAR') {
+            setCalendarMessage('Sua conexao com o Google expirou. Conecte novamente para ver seus eventos.');
           } else if (needsConnect && !calendarStatus) {
             setCalendarMessage('Conecte sua conta Google para carregar seus eventos.');
+          } else if (!needsConnect) {
+            setCalendarMessage('Nao foi possivel carregar sua agenda do Google agora. Tente recarregar a pagina.');
           }
         }
       }
@@ -212,7 +222,29 @@ export function DashboardPage() {
       .sort((a, b) => a.date.getTime() - b.date.getTime());
   }, [events]);
 
-  const nextEvents = useMemo(() => parsedEvents.slice(0, 4), [parsedEvents]);
+  // A API traz desde o mes anterior (para o calendario): aqui so o que ainda nao passou.
+  const nextEvents = useMemo(() => {
+    const inicioDeHoje = new Date();
+    inicioDeHoje.setHours(0, 0, 0, 0);
+    const agora = Date.now();
+    return parsedEvents
+      .filter((event) =>
+        event.timeLabel === 'Dia inteiro'
+          ? event.date.getTime() >= inicioDeHoje.getTime()
+          : event.date.getTime() >= agora
+      )
+      .slice(0, 4);
+  }, [parsedEvents]);
+
+  const eventosNoMes = useMemo(
+    () =>
+      parsedEvents.some(
+        (event) =>
+          event.date.getFullYear() === currentMonth.getFullYear() &&
+          event.date.getMonth() === currentMonth.getMonth()
+      ),
+    [parsedEvents, currentMonth]
+  );
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, ParsedCalendarEvent[]>();
@@ -270,7 +302,7 @@ export function DashboardPage() {
         <hr />
       </div>
 
-      <div className="agenda-container">
+      <div className="agenda-container" data-tour="agenda">
         <div className="calendario-principal">
           <div className="calendar-header">
             <h3>Calendario</h3>
@@ -316,7 +348,7 @@ export function DashboardPage() {
                   Conectar com Google
                 </button>
               </div>
-            ) : parsedEvents.length > 0 ? (
+            ) : calendarCarregado ? (
               <div className="calendar-grid-wrap">
                 <div className="calendar-weekdays">
                   <span>Dom</span>
@@ -362,9 +394,21 @@ export function DashboardPage() {
                     );
                   })}
                 </div>
+                {!eventosNoMes ? (
+                  <p className="calendar-vazio">Nenhum evento na sua agenda Google neste mes.</p>
+                ) : null}
+                <button
+                  type="button"
+                  className="calendar-reconectar"
+                  onClick={() => {
+                    window.location.href = `${LEGACY_API_BASE_URL}/api/calendar/connect/`;
+                  }}
+                >
+                  Reconectar conta Google
+                </button>
               </div>
             ) : (
-              <p>{calendarMessage || 'Sem eventos carregados no momento.'}</p>
+              <p>{calendarMessage || 'Carregando agenda...'}</p>
             )}
           </div>
         </div>
@@ -420,7 +464,7 @@ export function DashboardPage() {
         </div>
       </section>
 
-      <section className="ultimas-noticias">
+      <section className="ultimas-noticias" data-tour="comunicados">
         <div className="faixa-titulo">
           <div className="faixa-container">
             <h2>COMUNICADOS</h2>

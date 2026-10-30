@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -31,6 +31,8 @@ type MysqlRow = Record<string, any>;
 const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'alpes_session';
 const CSRF_COOKIE_NAME = 'csrftoken';
 const SESSION_TTL_MS = 1000 * 60 * 60 * 8; // 8 hours
+// Vai junto do 403 de sessao invalida para o front diferenciar de "sem permissao" e avisar o usuario.
+const SESSAO_EXPIRADA_CODE = 'SESSAO_EXPIRADA';
 const USER_PHOTO_BASE_URL = process.env.USER_PHOTO_BASE_URL || '';
 const USER_PHOTO_DEFAULT_EXT = (process.env.USER_PHOTO_DEFAULT_EXT || 'jpg')
   .trim()
@@ -70,6 +72,8 @@ const GOOGLE_REDIRECT_URI = (process.env.GOOGLE_REDIRECT_URI || '').trim();
 // (calendar.events.readonly nao permite CalendarList.List -> 403 insufficient scopes).
 const GOOGLE_CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 const GOOGLE_PROVIDER = 'google_calendar';
+// Front mostra "Conectar com Google" com a mensagem de conexao expirada.
+const GOOGLE_RECONECTAR_CODE = 'GOOGLE_RECONECTAR';
 const FRONTEND_BASE_URL = (process.env.FRONTEND_BASE_URL || 'http://localhost:5173').trim();
 
 const csrfBySessionToken = new Map<string, string>();
@@ -209,7 +213,7 @@ function getSessionUser(req: Request) {
     return null;
   }
 
-  return { sessionToken, user: session.user };
+  return { sessionToken, user: session.user, expiresAt: session.expiresAt };
 }
 
 function isCsrfValid(req: Request, sessionToken?: string) {
@@ -349,14 +353,17 @@ function compareBySetorOrdem(ordem: Map<string, number>, a: unknown, b: unknown)
   return keyA.localeCompare(keyB, 'pt-BR');
 }
 
+// Caminho do proxy da foto (relativo, para gravar no banco). null se o arquivo nao for valido.
+function funcionarioFotoPath(foto: unknown) {
+  const arquivo = String(foto || '').trim();
+  if (!FUNCIONARIO_FOTO_SOURCE_URL || !FUNCIONARIO_FOTO_ARQUIVO_PATTERN.test(arquivo)) return null;
+  return `/api/funcionario-foto/${encodeURIComponent(arquivo)}`;
+}
+
 // Foto vem so do sistema novo (funcionarios.foto). Sem foto la, o front mostra as iniciais.
 function funcionarioImageUrl(row: MysqlRow) {
-  const foto = String(row.foto || '').trim();
-  if (!FUNCIONARIO_FOTO_SOURCE_URL || !FUNCIONARIO_FOTO_ARQUIVO_PATTERN.test(foto)) return null;
-  const proxyPath = `/api/funcionario-foto/${encodeURIComponent(foto)}`;
-  return USER_PHOTO_PROXY_PUBLIC_BASE_URL
-    ? `${USER_PHOTO_PROXY_PUBLIC_BASE_URL.replace(/\/+$/, '')}${proxyPath}`
-    : proxyPath;
+  const fotoPath = funcionarioFotoPath(row.foto);
+  return fotoPath ? backendPublicUrl(fotoPath) : null;
 }
 
 function funcionarioFotoHeaders() {
@@ -366,6 +373,99 @@ function funcionarioFotoHeaders() {
     [FUNCIONARIO_FOTO_AUTH_HEADER.slice(0, separator).trim()]: FUNCIONARIO_FOTO_AUTH_HEADER.slice(
       separator + 1
     ).trim()
+  };
+}
+
+// URL de arquivo servido pelo backend (/uploads, /api); no dev o front roda em outra porta.
+function backendPublicUrl(pathOrUrl: string) {
+  if (!pathOrUrl.startsWith('/') || !USER_PHOTO_PROXY_PUBLIC_BASE_URL) return pathOrUrl;
+  return `${USER_PHOTO_PROXY_PUBLIC_BASE_URL.replace(/\/+$/, '')}${pathOrUrl}`;
+}
+
+const FOTO_CAMPANHA_TEMAS = ['criancas', 'natal', 'pascoa', 'halloween', 'outro'];
+const DATA_ISO_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+// Data de hoje no fuso da empresa (o servidor/MySQL podem estar em UTC).
+function hojeSaoPaulo() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+}
+
+type FotoCampanhaAtiva = {
+  imagem_url: string;
+  campanha: { id: number; nome: string; tema: string; revelar: boolean };
+};
+
+// Foto de campanha vigente por funcionario. Com campanhas sobrepostas vale a que comecou por ultimo.
+const TEMA_FESTIVO_MODOS = ['auto', 'nenhum', 'halloween', 'natal'] as const;
+type TemaFestivoModo = (typeof TEMA_FESTIVO_MODOS)[number];
+
+function normalizarTemaFestivo(valor: unknown): TemaFestivoModo {
+  const modo = String(valor || '').trim().toLowerCase();
+  return (TEMA_FESTIVO_MODOS as readonly string[]).includes(modo) ? (modo as TemaFestivoModo) : 'auto';
+}
+
+// "auto": Halloween em outubro; Natal de 1/dez a 6/jan (Dia de Reis). Data de Sao Paulo.
+function resolverTemaFestivo(modo: TemaFestivoModo): 'halloween' | 'natal' | null {
+  if (modo === 'nenhum') return null;
+  if (modo !== 'auto') return modo;
+  const [, mes, dia] = hojeSaoPaulo().split('-').map(Number);
+  if (mes === 10) return 'halloween';
+  if (mes === 12 || (mes === 1 && dia <= 6)) return 'natal';
+  return null;
+}
+
+async function fetchFotosCampanhaAtivas() {
+  await ensureFeatureTables();
+  const fotos = new Map<number, FotoCampanhaAtiva>();
+  try {
+    const [rows] = await mysqlPool.query(
+      `SELECT f.funcionario_id, f.imagem_url, c.id, c.nome, c.tema, c.revelar
+         FROM intranet_foto_campanha_fotos f
+         JOIN intranet_foto_campanhas c ON c.id = f.campanha_id
+        WHERE c.ativo = 1 AND ? BETWEEN c.data_inicio AND c.data_fim
+        ORDER BY c.data_inicio DESC, c.id DESC`,
+      [hojeSaoPaulo()]
+    );
+    for (const row of rows as MysqlRow[]) {
+      const funcionarioId = Number(row.funcionario_id);
+      if (fotos.has(funcionarioId)) continue;
+      fotos.set(funcionarioId, {
+        imagem_url: backendPublicUrl(String(row.imagem_url)),
+        campanha: {
+          id: Number(row.id),
+          nome: String(row.nome),
+          tema: String(row.tema),
+          revelar: toBoolean(row.revelar, true)
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Falha ao carregar campanhas de foto:', error);
+  }
+  return fotos;
+}
+
+function parseFotoCampanhaBody(body: any) {
+  const nome = String(body?.nome || '').trim().slice(0, 120);
+  const tema = FOTO_CAMPANHA_TEMAS.includes(String(body?.tema)) ? String(body.tema) : 'outro';
+  const dataInicio = String(body?.data_inicio || '').trim();
+  const dataFim = String(body?.data_fim || '').trim();
+
+  if (!nome) return { error: 'Informe o nome da campanha.' };
+  if (!DATA_ISO_PATTERN.test(dataInicio) || !DATA_ISO_PATTERN.test(dataFim)) {
+    return { error: 'Informe as datas de inicio e fim.' };
+  }
+  if (dataFim < dataInicio) return { error: 'A data de fim deve ser igual ou posterior ao inicio.' };
+
+  return {
+    values: {
+      nome,
+      tema,
+      data_inicio: dataInicio,
+      data_fim: dataFim,
+      revelar: toBoolean(body?.revelar, true) ? 1 : 0,
+      ativo: toBoolean(body?.ativo, true) ? 1 : 0
+    }
   };
 }
 
@@ -578,7 +678,13 @@ async function refreshGoogleAccessToken(refreshToken: string) {
 
   if (!response.ok) {
     const payload = await response.text();
-    throw new Error(`Falha ao renovar token Google: ${payload}`);
+    const error: Error & { googleError?: string } = new Error(`Falha ao renovar token Google: ${payload}`);
+    try {
+      error.googleError = String(JSON.parse(payload)?.error || '');
+    } catch {
+      // resposta sem JSON
+    }
+    throw error;
   }
 
   return (await response.json()) as {
@@ -689,7 +795,7 @@ async function requireAdmin(
 ) {
   const session = getSessionUser(req);
   if (!session) {
-    res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+    res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
     return null;
   }
 
@@ -845,6 +951,67 @@ async function ensureFeatureTables() {
       )
     `);
 
+    // Campanhas de foto (ex.: Dia das Criancas): troca temporaria da foto, sem mexer na oficial do Apex.
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS intranet_foto_campanhas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nome VARCHAR(120) NOT NULL,
+        tema VARCHAR(20) NOT NULL DEFAULT 'outro',
+        data_inicio DATE NOT NULL,
+        data_fim DATE NOT NULL,
+        revelar TINYINT(1) NOT NULL DEFAULT 1,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        updated_by VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    // funcionario_id e o id de funcionarios em FUNCIONARIOS_DATABASE (outro banco: sem FK).
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS intranet_foto_campanha_fotos (
+        campanha_id INT NOT NULL,
+        funcionario_id INT NOT NULL,
+        imagem_url TEXT NOT NULL,
+        updated_by VARCHAR(255) NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (campanha_id, funcionario_id),
+        CONSTRAINT fk_foto_campanha_fotos_campanha
+          FOREIGN KEY (campanha_id) REFERENCES intranet_foto_campanhas(id)
+          ON DELETE CASCADE
+      )
+    `);
+
+    // Notificacoes que so aparecem no sino (nao viram noticia). Ex.: resultado de sorteio.
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS intranet_notificacoes (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        tipo VARCHAR(30) NOT NULL,
+        titulo VARCHAR(255) NOT NULL,
+        mensagem TEXT NULL,
+        imagem_url VARCHAR(255) NULL,
+        criado_por VARCHAR(255) NULL,
+        criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Historico do sorteador. participantes = JSON [{id, nome, setor}] do momento do sorteio.
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS intranet_sorteios (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        premio VARCHAR(255) NOT NULL,
+        vencedor_funcionario_id INT NOT NULL,
+        vencedor_nome VARCHAR(255) NOT NULL,
+        vencedor_setor VARCHAR(120) NULL,
+        vencedor_foto VARCHAR(160) NULL,
+        participantes_total INT NOT NULL,
+        participantes MEDIUMTEXT NOT NULL,
+        noticia_id INT NULL,
+        realizado_por VARCHAR(255) NULL,
+        realizado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     const [ordemRows] = await mysqlPool.query('SELECT COUNT(*) AS total FROM intranet_setor_ordem');
     if (Number((ordemRows as MysqlRow[])[0]?.total || 0) === 0) {
       await mysqlPool.query('INSERT INTO intranet_setor_ordem (setor, ordem) VALUES ?', [
@@ -957,6 +1124,26 @@ async function ensureFeatureTables() {
       migrationFailed = true;
       console.error('Falha ao adicionar coluna sobre_video_url em intranet_config:', error);
     }
+  }
+  // Tema festivo da intranet: auto (pela data), nenhum, halloween ou natal.
+  try {
+    await mysqlPool.query(
+      `ALTER TABLE intranet_config ADD COLUMN tema_festivo VARCHAR(20) NOT NULL DEFAULT 'auto'`
+    );
+  } catch (error: any) {
+    if (error?.code !== 'ER_DUP_FIELDNAME') {
+      migrationFailed = true;
+      console.error('Falha ao adicionar coluna tema_festivo em intranet_config:', error);
+    }
+  }
+  // Sorteios novos avisam pelo sino (intranet_notificacoes); noticia_id fica so para os antigos.
+  try {
+    await mysqlPool.query(`ALTER TABLE intranet_sorteios ADD COLUMN notificacao_id INT NULL`);
+  } catch (error: any) {
+    if (error?.code !== 'ER_DUP_FIELDNAME') {
+      migrationFailed = true;
+      console.error('Falha ao adicionar coluna notificacao_id em intranet_sorteios:', error);
+    }
   } finally {
     featureTablesReady = !migrationFailed;
   }
@@ -1003,7 +1190,7 @@ router.get('/foto/:id', async (req: Request, res: Response) => {
   if (USER_PHOTO_PROXY_REQUIRE_AUTH) {
     const session = getSessionUser(req);
     if (!session) {
-      return res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+      return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
     }
   }
 
@@ -1024,7 +1211,7 @@ router.get('/foto/:id', async (req: Request, res: Response) => {
 
 router.get('/funcionario-foto/:arquivo', async (req: Request, res: Response) => {
   if (USER_PHOTO_PROXY_REQUIRE_AUTH && !getSessionUser(req)) {
-    return res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
   }
 
   const arquivo = String(req.params.arquivo || '');
@@ -1105,7 +1292,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 router.get('/auth/user', async (req: Request, res: Response) => {
   const session = getSessionUser(req);
   if (!session) {
-    return res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
   }
 
   try {
@@ -1115,22 +1302,36 @@ router.get('/auth/user', async (req: Request, res: Response) => {
     const users = rows as MysqlRow[];
 
     if (!users.length) {
-      return res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+      return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
     }
 
     const freshUser = sanitizeUserFromRow(users[0]);
-    sessionStore.set(session.sessionToken, { user: freshUser, expiresAt: now() + SESSION_TTL_MS });
+    const expiresAt = now() + SESSION_TTL_MS;
+    sessionStore.set(session.sessionToken, { user: freshUser, expiresAt });
     persistAuthState();
-    return res.json(freshUser);
+    // sessao_expira_em: o front avisa antes de expirar e oferece renovar (chamando esta rota de novo).
+    return res.json({ ...freshUser, sessao_expira_em: expiresAt });
   } catch {
-    return res.json(session.user);
+    return res.json({ ...session.user, sessao_expira_em: session.expiresAt });
   }
+});
+
+// So consulta a validade, sem renovar (o /auth/user renova): o aviso de expiracao confere aqui
+// antes de avisar, porque outra aba pode ter renovado a sessao.
+router.get('/auth/sessao', (req: Request, res: Response) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res
+      .status(403)
+      .json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
+  }
+  return res.json({ sessao_expira_em: session.expiresAt });
 });
 
 router.get('/minhas-permissoes', async (req: Request, res: Response) => {
   const session = getSessionUser(req);
   if (!session) {
-    return res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
   }
 
   if (session.user.role === 'admin') {
@@ -1188,21 +1389,32 @@ router.post('/auth/logout', (req: Request, res: Response) => {
 // Team / photos / birthdays
 router.get('/equipe', async (req: Request, res: Response) => {
   try {
-    const [rows, setorOrdem] = await Promise.all([fetchFuncionariosIntranet(), fetchSetorOrdem()]);
+    const [rows, setorOrdem, fotosCampanha] = await Promise.all([
+      fetchFuncionariosIntranet(),
+      fetchSetorOrdem(),
+      fetchFotosCampanhaAtivas()
+    ]);
     // sort estavel: dentro do mesmo setor mantem a ordem por nome do SQL.
     rows.sort((a, b) => compareBySetorOrdem(setorOrdem, a.departamento, b.departamento));
 
-    const data = rows.map((row) => ({
-      id: row.funcionario_id,
-      nome_formatado: row.nome,
-      setor: row.departamento || '',
-      cargo: row.cargo || '',
-      email: row.email || '',
-      fone: row.telefone || '',
-      telefone: row.telefone || '',
-      imagem_url: funcionarioImageUrl(row),
-      aniversario: row.aniversario || null
-    }));
+    const data = rows.map((row) => {
+      const fotoOficial = funcionarioImageUrl(row);
+      const campanha = fotosCampanha.get(Number(row.funcionario_id));
+      return {
+        id: row.funcionario_id,
+        nome_formatado: row.nome,
+        setor: row.departamento || '',
+        cargo: row.cargo || '',
+        email: row.email || '',
+        fone: row.telefone || '',
+        telefone: row.telefone || '',
+        // Com campanha vigente a foto tematica substitui a oficial em todas as telas.
+        imagem_url: campanha?.imagem_url || fotoOficial,
+        imagem_oficial_url: campanha ? fotoOficial : undefined,
+        campanha: campanha?.campanha,
+        aniversario: row.aniversario || null
+      };
+    });
 
     res.json(data);
   } catch (error: any) {
@@ -1232,6 +1444,41 @@ router.get('/noticias', async (req: Request, res: Response) => {
     res.json(noticias);
   } catch (error: any) {
     res.status(500).json({ error: error?.message || 'Falha ao carregar noticias.' });
+  }
+});
+
+// Notificacoes do sino que nao sao noticias (ex.: resultado de sorteio). Ultimos 60 dias.
+router.get('/notificacoes', async (req: Request, res: Response) => {
+  const session = getSessionUser(req);
+  if (!session) {
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
+  }
+  await ensureFeatureTables();
+
+  try {
+    const [rows] = await mysqlPool.query(
+      `SELECT id, tipo, titulo, mensagem, imagem_url,
+              DATE_FORMAT(criado_em, '%Y-%m-%dT%H:%i:%s') AS criado_em
+         FROM intranet_notificacoes
+        WHERE criado_em >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+        ORDER BY id DESC
+        LIMIT 30`
+    );
+    return res.json(
+      (rows as MysqlRow[]).map((row) => {
+        const imagem = String(row.imagem_url || '');
+        return {
+          id: row.id,
+          tipo: row.tipo,
+          titulo: row.titulo,
+          mensagem: row.mensagem || '',
+          imagem_url: imagem.startsWith('/') ? backendPublicUrl(imagem) : imagem || null,
+          criado_em: row.criado_em
+        };
+      })
+    );
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar notificacoes.' });
   }
 });
 
@@ -1342,6 +1589,21 @@ router.get('/intranet-config', async (req: Request, res: Response) => {
     return res.json(configs[0]);
   } catch {
     return res.json({});
+  }
+});
+
+// Publico: a tela de login tambem usa. So diz qual enfeite mostrar.
+router.get('/tema-festivo', async (req: Request, res: Response) => {
+  await ensureFeatureTables();
+  res.setHeader('Cache-Control', 'no-store');
+  try {
+    const [rows] = await mysqlPool.query(
+      'SELECT tema_festivo FROM intranet_config ORDER BY id DESC LIMIT 1'
+    );
+    const modo = normalizarTemaFestivo((rows as MysqlRow[])[0]?.tema_festivo);
+    return res.json({ modo, tema: resolverTemaFestivo(modo) });
+  } catch {
+    return res.json({ modo: 'auto', tema: resolverTemaFestivo('auto') });
   }
 });
 
@@ -1504,7 +1766,7 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
   res.setHeader('Cache-Control', 'no-store');
   const session = getSessionUser(req);
   if (!session) {
-    return res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
   }
 
   if (!hasGoogleCalendarConfig()) {
@@ -1526,6 +1788,21 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
           'Tabela usuario_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
       });
     }
+    // invalid_grant = o Google nao aceita mais o refresh_token (acesso revogado, senha trocada,
+    // app em modo "Teste" expira em 7 dias...). Limpa e pede para conectar de novo, em vez de
+    // devolver 500 e a tela ficar vazia. Outros erros (invalid_client) sao de configuracao: nao apaga.
+    if (error?.googleError === 'invalid_grant') {
+      await mysqlPool.query(
+        `UPDATE usuario_integracoes
+         SET access_token = NULL, refresh_token = NULL, access_token_expires_at = NULL
+         WHERE usuario_id = ? AND provider = ?`,
+        [userId, GOOGLE_PROVIDER]
+      );
+      return res.status(403).json({
+        error: 'Google Calendar desconectado. Conecte novamente.',
+        code: GOOGLE_RECONECTAR_CODE
+      });
+    }
     return res.status(500).json({ error: error?.message || 'Falha ao validar token do Google Calendar.' });
   }
   if (!accessToken) {
@@ -1533,10 +1810,11 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
   }
 
   try {
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const timeMin = startOfToday.toISOString();
-    const timeMax = new Date(now() + 1000 * 60 * 60 * 24 * 90).toISOString();
+    // Desde o inicio do mes anterior: o calendario mostra o mes inteiro (nao so de hoje em diante)
+    // e da para voltar um mes. O front filtra os "Proximos eventos".
+    const inicio = new Date();
+    const timeMin = new Date(inicio.getFullYear(), inicio.getMonth() - 1, 1).toISOString();
+    const timeMax = new Date(now() + 1000 * 60 * 60 * 24 * 120).toISOString();
 
     const fetchCalendarEvents = async (calendarId: string, maxResults = 100) => {
       const params = new URLSearchParams({
@@ -1555,7 +1833,7 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
       return response;
     };
 
-    const response = await fetchCalendarEvents('primary', 100);
+    const response = await fetchCalendarEvents('primary', 250);
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -1565,7 +1843,10 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
            WHERE usuario_id = ? AND provider = ?`,
           [userId, GOOGLE_PROVIDER]
         );
-        return res.status(403).json({ error: 'Google Calendar desconectado. Conecte novamente.' });
+        return res.status(403).json({
+          error: 'Google Calendar desconectado. Conecte novamente.',
+          code: GOOGLE_RECONECTAR_CODE
+        });
       }
       const text = await response.text();
       return res.status(500).json({ error: `Falha ao buscar eventos no Google: ${text}` });
@@ -1597,7 +1878,7 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
         .slice(0, 15);
 
       for (const calendarId of calendarIds) {
-        const calendarResponse = await fetchCalendarEvents(calendarId, 100);
+        const calendarResponse = await fetchCalendarEvents(calendarId, 250);
         if (!calendarResponse.ok) continue;
         const calendarPayload = (await calendarResponse.json()) as { items?: any[] };
         pushItems(Array.isArray(calendarPayload.items) ? calendarPayload.items : []);
@@ -1630,7 +1911,7 @@ router.get('/calendar/debug', async (req: Request, res: Response) => {
   await ensureFeatureTables();
   const session = getSessionUser(req);
   if (!session) {
-    return res.status(403).json({ ok: false, step: 'session', error: 'Sessao invalida ou expirada.' });
+    return res.status(403).json({ ok: false, step: 'session', error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
   }
 
   if (!hasGoogleCalendarConfig()) {
@@ -1794,7 +2075,7 @@ router.get('/calendar/debug', async (req: Request, res: Response) => {
 router.get('/equipamentos', async (req: Request, res: Response) => {
   const session = getSessionUser(req);
   if (!session) {
-    return res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
   }
 
   try {
@@ -1929,7 +2210,7 @@ router.get('/admin/intranet/config', async (req: Request, res: Response) => {
   await ensureFeatureTables();
 
   const [rows] = await mysqlPool.query(
-    `SELECT id, imagem_inicial_url, fala_alpes_video_url, sobre_video_url, updated_by, updated_at
+    `SELECT id, imagem_inicial_url, fala_alpes_video_url, sobre_video_url, tema_festivo, updated_by, updated_at
      FROM intranet_config
      ORDER BY id DESC
      LIMIT 1`
@@ -1944,7 +2225,7 @@ router.put('/admin/intranet/config', async (req: Request, res: Response) => {
   await ensureFeatureTables();
 
   const [rows] = await mysqlPool.query(
-    `SELECT id, imagem_inicial_url, fala_alpes_video_url, sobre_video_url
+    `SELECT id, imagem_inicial_url, fala_alpes_video_url, sobre_video_url, tema_festivo
      FROM intranet_config
      ORDER BY id DESC
      LIMIT 1`
@@ -1978,22 +2259,33 @@ router.put('/admin/intranet/config', async (req: Request, res: Response) => {
     sobreVideoUrl = rawSobreUrl || null;
   }
 
+  let temaFestivo = normalizarTemaFestivo(current?.tema_festivo);
+  if (req.body?.tema_festivo !== undefined) {
+    const modo = String(req.body.tema_festivo || '').trim().toLowerCase();
+    if (!(TEMA_FESTIVO_MODOS as readonly string[]).includes(modo)) {
+      return res.status(400).json({ error: 'Tema invalido.' });
+    }
+    temaFestivo = modo as TemaFestivoModo;
+  }
+
   const videoUrlChanged =
     req.body?.fala_alpes_video_url !== undefined &&
     falaAlpesVideoUrl !== (current?.fala_alpes_video_url ?? null);
 
   if (!current) {
     await mysqlPool.query(
-      `INSERT INTO intranet_config (imagem_inicial_url, fala_alpes_video_url, sobre_video_url, updated_by)
-       VALUES (?, ?, ?, ?)`,
-      [imagemInicialUrl, falaAlpesVideoUrl, sobreVideoUrl, session.user.login]
+      `INSERT INTO intranet_config
+         (imagem_inicial_url, fala_alpes_video_url, sobre_video_url, tema_festivo, updated_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [imagemInicialUrl, falaAlpesVideoUrl, sobreVideoUrl, temaFestivo, session.user.login]
     );
   } else {
     await mysqlPool.query(
       `UPDATE intranet_config
-       SET imagem_inicial_url = ?, fala_alpes_video_url = ?, sobre_video_url = ?, updated_by = ?
+       SET imagem_inicial_url = ?, fala_alpes_video_url = ?, sobre_video_url = ?, tema_festivo = ?,
+           updated_by = ?
        WHERE id = ?`,
-      [imagemInicialUrl, falaAlpesVideoUrl, sobreVideoUrl, session.user.login, current.id]
+      [imagemInicialUrl, falaAlpesVideoUrl, sobreVideoUrl, temaFestivo, session.user.login, current.id]
     );
   }
 
@@ -2074,6 +2366,363 @@ router.put('/admin/intranet/setores-ordem', async (req: Request, res: Response) 
   }
 
   return res.json({ success: true });
+});
+
+router.get('/admin/intranet/foto-campanhas', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res);
+  if (!session) return;
+  await ensureFeatureTables();
+
+  try {
+    const [rows] = await mysqlPool.query(
+      `SELECT c.id, c.nome, c.tema, c.revelar, c.ativo,
+              DATE_FORMAT(c.data_inicio, '%Y-%m-%d') AS data_inicio,
+              DATE_FORMAT(c.data_fim, '%Y-%m-%d') AS data_fim,
+              (SELECT COUNT(*) FROM intranet_foto_campanha_fotos f WHERE f.campanha_id = c.id) AS total_fotos
+         FROM intranet_foto_campanhas c
+        ORDER BY c.data_inicio DESC, c.id DESC`
+    );
+    return res.json({ hoje: hojeSaoPaulo(), campanhas: rows });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar campanhas.' });
+  }
+});
+
+router.post('/admin/intranet/foto-campanhas', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const parsed = parseFotoCampanhaBody(req.body);
+  if (!parsed.values) return res.status(400).json({ error: parsed.error });
+
+  const { nome, tema, data_inicio, data_fim, revelar, ativo } = parsed.values;
+  try {
+    const [result] = await mysqlPool.query(
+      `INSERT INTO intranet_foto_campanhas (nome, tema, data_inicio, data_fim, revelar, ativo, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [nome, tema, data_inicio, data_fim, revelar, ativo, session.user.login]
+    );
+    return res.json({ success: true, id: (result as any).insertId });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao criar campanha.' });
+  }
+});
+
+router.put('/admin/intranet/foto-campanhas/:id', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const parsed = parseFotoCampanhaBody(req.body);
+  if (!parsed.values) return res.status(400).json({ error: parsed.error });
+
+  const { nome, tema, data_inicio, data_fim, revelar, ativo } = parsed.values;
+  try {
+    const [result] = await mysqlPool.query(
+      `UPDATE intranet_foto_campanhas
+          SET nome = ?, tema = ?, data_inicio = ?, data_fim = ?, revelar = ?, ativo = ?, updated_by = ?
+        WHERE id = ?`,
+      [nome, tema, data_inicio, data_fim, revelar, ativo, session.user.login, Number(req.params.id)]
+    );
+    if (!(result as any).affectedRows) return res.status(404).json({ error: 'Campanha nao encontrada.' });
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao salvar campanha.' });
+  }
+});
+
+router.delete('/admin/intranet/foto-campanhas/:id', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  try {
+    const [result] = await mysqlPool.query('DELETE FROM intranet_foto_campanhas WHERE id = ?', [
+      Number(req.params.id)
+    ]);
+    if (!(result as any).affectedRows) return res.status(404).json({ error: 'Campanha nao encontrada.' });
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao excluir campanha.' });
+  }
+});
+
+// Copia a campanha (com as fotos) para o ano seguinte: fotos de infancia nao mudam.
+router.post('/admin/intranet/foto-campanhas/:id/duplicar', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const [rows] = await mysqlPool
+    .query('SELECT nome FROM intranet_foto_campanhas WHERE id = ?', [Number(req.params.id)])
+    .catch(() => [[]]);
+  const original = (rows as MysqlRow[])[0];
+  if (!original) return res.status(404).json({ error: 'Campanha nao encontrada.' });
+
+  const nomeOriginal = String(original.nome);
+  const novoNome = /\b\d{4}\b/.test(nomeOriginal)
+    ? nomeOriginal.replace(/\b(\d{4})\b/, (ano) => String(Number(ano) + 1))
+    : `${nomeOriginal} (copia)`.slice(0, 120);
+
+  const connection = await mysqlPool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [result] = await connection.query(
+      `INSERT INTO intranet_foto_campanhas (nome, tema, data_inicio, data_fim, revelar, ativo, updated_by)
+       SELECT ?, tema, DATE_ADD(data_inicio, INTERVAL 1 YEAR), DATE_ADD(data_fim, INTERVAL 1 YEAR),
+              revelar, ativo, ?
+         FROM intranet_foto_campanhas WHERE id = ?`,
+      [novoNome, session.user.login, Number(req.params.id)]
+    );
+    const novoId = (result as any).insertId;
+    await connection.query(
+      `INSERT INTO intranet_foto_campanha_fotos (campanha_id, funcionario_id, imagem_url, updated_by)
+       SELECT ?, funcionario_id, imagem_url, ? FROM intranet_foto_campanha_fotos WHERE campanha_id = ?`,
+      [novoId, session.user.login, Number(req.params.id)]
+    );
+    await connection.commit();
+    return res.json({ success: true, id: novoId });
+  } catch (error: any) {
+    await connection.rollback();
+    return res.status(500).json({ error: error?.message || 'Falha ao duplicar campanha.' });
+  } finally {
+    connection.release();
+  }
+});
+
+// Todos os colaboradores da intranet, com a foto oficial e a da campanha (se enviada).
+router.get('/admin/intranet/foto-campanhas/:id/fotos', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res);
+  if (!session) return;
+  await ensureFeatureTables();
+
+  try {
+    const [funcionarios, [fotoRows]] = await Promise.all([
+      fetchFuncionariosIntranet(),
+      mysqlPool.query(
+        'SELECT funcionario_id, imagem_url FROM intranet_foto_campanha_fotos WHERE campanha_id = ?',
+        [Number(req.params.id)]
+      )
+    ]);
+    const fotos = new Map(
+      (fotoRows as MysqlRow[]).map((row) => [Number(row.funcionario_id), String(row.imagem_url)])
+    );
+
+    return res.json(
+      funcionarios.map((row) => {
+        const fotoCampanha = fotos.get(Number(row.funcionario_id));
+        return {
+          funcionario_id: row.funcionario_id,
+          nome: row.nome,
+          setor: row.departamento || '',
+          imagem_oficial_url: funcionarioImageUrl(row),
+          imagem_campanha_url: fotoCampanha ? backendPublicUrl(fotoCampanha) : null
+        };
+      })
+    );
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar fotos da campanha.' });
+  }
+});
+
+router.put(
+  '/admin/intranet/foto-campanhas/:id/fotos/:funcionarioId',
+  async (req: Request, res: Response) => {
+    const session = await requireAdmin(req, res, { requireCsrf: true });
+    if (!session) return;
+    await ensureFeatureTables();
+
+    const campanhaId = Number(req.params.id);
+    const funcionarioId = Number(req.params.funcionarioId);
+    if (!Number.isInteger(funcionarioId) || funcionarioId <= 0) {
+      return res.status(400).json({ error: 'Colaborador invalido.' });
+    }
+
+    try {
+      const [campanhas] = await mysqlPool.query('SELECT id FROM intranet_foto_campanhas WHERE id = ?', [
+        campanhaId
+      ]);
+      if (!(campanhas as MysqlRow[]).length) {
+        return res.status(404).json({ error: 'Campanha nao encontrada.' });
+      }
+
+      // /uploads e publico: nome aleatorio para a foto nao ser descoberta pelo nome do colaborador.
+      const uploaded = await saveBase64Image({
+        dataUrl: req.body?.data_url,
+        fileName: `foto-${randomBytes(12).toString('hex')}`,
+        folder: 'campanhas'
+      });
+      await mysqlPool.query(
+        `INSERT INTO intranet_foto_campanha_fotos (campanha_id, funcionario_id, imagem_url, updated_by)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE imagem_url = VALUES(imagem_url), updated_by = VALUES(updated_by)`,
+        [campanhaId, funcionarioId, uploaded.url, session.user.login]
+      );
+      return res.json({ success: true, imagem_campanha_url: backendPublicUrl(uploaded.url) });
+    } catch (error: any) {
+      return res.status(400).json({ error: error?.message || 'Falha ao enviar foto.' });
+    }
+  }
+);
+
+router.delete(
+  '/admin/intranet/foto-campanhas/:id/fotos/:funcionarioId',
+  async (req: Request, res: Response) => {
+    const session = await requireAdmin(req, res, { requireCsrf: true });
+    if (!session) return;
+    await ensureFeatureTables();
+
+    try {
+      await mysqlPool.query(
+        'DELETE FROM intranet_foto_campanha_fotos WHERE campanha_id = ? AND funcionario_id = ?',
+        [Number(req.params.id), Number(req.params.funcionarioId)]
+      );
+      return res.json({ success: true });
+    } catch (error: any) {
+      return res.status(500).json({ error: error?.message || 'Falha ao remover foto.' });
+    }
+  }
+);
+
+// Sorteador: o servidor escolhe o vencedor (randomInt, criptografico) e grava no mesmo passo,
+// assim o historico nao depende do navegador. O front so anima ate o vencedor devolvido.
+router.post('/admin/sorteios', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const premio = String(req.body?.premio || '').trim().slice(0, 255);
+  const rawIds: unknown[] = Array.isArray(req.body?.participantes) ? req.body.participantes : [];
+  const ids = new Set(rawIds.map(Number).filter((id) => Number.isInteger(id) && id > 0));
+  const notificar = toBoolean(req.body?.notificar, true);
+
+  if (!premio) return res.status(400).json({ error: 'Informe o premio.' });
+
+  const connection = await mysqlPool.getConnection();
+  try {
+    // So vale quem esta ativo na intranet agora (ignora ids forjados ou desligados).
+    const participantes = (await fetchFuncionariosIntranet()).filter((row) =>
+      ids.has(Number(row.funcionario_id))
+    );
+    if (participantes.length < 2) {
+      return res.status(400).json({ error: 'Selecione pelo menos 2 participantes.' });
+    }
+
+    const vencedor = participantes[randomInt(participantes.length)];
+    const vencedorNome = String(vencedor.nome);
+    const vencedorSetor = String(vencedor.departamento || '');
+    const fotoPath = funcionarioFotoPath(vencedor.foto);
+
+    await connection.beginTransaction();
+    let notificacaoId: number | null = null;
+    if (notificar) {
+      // So no sino: resultado de sorteio nao entra em Noticias.
+      const [notificacao] = await connection.query(
+        `INSERT INTO intranet_notificacoes (tipo, titulo, mensagem, imagem_url, criado_por)
+         VALUES ('sorteio', ?, ?, ?, ?)`,
+        [
+          `Resultado do sorteio: ${premio}`.slice(0, 255),
+          `Parabéns, ${vencedorNome}! Você foi sorteado(a) e ganhou: ${premio}. ` +
+            `O sorteio foi realizado entre ${participantes.length} participantes.`,
+          fotoPath,
+          session.user.nome_completo
+        ]
+      );
+      notificacaoId = (notificacao as any).insertId || null;
+    }
+
+    const [result] = await connection.query(
+      `INSERT INTO intranet_sorteios
+         (premio, vencedor_funcionario_id, vencedor_nome, vencedor_setor, vencedor_foto,
+          participantes_total, participantes, notificacao_id, realizado_por)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        premio,
+        Number(vencedor.funcionario_id),
+        vencedorNome,
+        vencedorSetor || null,
+        String(vencedor.foto || '').trim() || null,
+        participantes.length,
+        JSON.stringify(
+          participantes.map((row) => ({
+            id: Number(row.funcionario_id),
+            nome: String(row.nome),
+            setor: String(row.departamento || '')
+          }))
+        ),
+        notificacaoId,
+        session.user.nome_completo
+      ]
+    );
+    await connection.commit();
+
+    return res.json({
+      success: true,
+      sorteio: {
+        id: (result as any).insertId,
+        premio,
+        participantes_total: participantes.length,
+        notificado: Boolean(notificacaoId),
+        vencedor: {
+          id: Number(vencedor.funcionario_id),
+          nome: vencedorNome,
+          setor: vencedorSetor,
+          imagem_url: fotoPath ? backendPublicUrl(fotoPath) : null
+        }
+      }
+    });
+  } catch (error: any) {
+    await connection.rollback().catch(() => undefined);
+    return res.status(500).json({ error: error?.message || 'Falha ao realizar o sorteio.' });
+  } finally {
+    connection.release();
+  }
+});
+
+router.get('/admin/sorteios', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res);
+  if (!session) return;
+  await ensureFeatureTables();
+
+  try {
+    const [rows] = await mysqlPool.query(
+      `SELECT id, premio, vencedor_funcionario_id, vencedor_nome, vencedor_setor, vencedor_foto,
+              participantes_total, participantes, noticia_id, notificacao_id, realizado_por,
+              DATE_FORMAT(realizado_em, '%Y-%m-%d %H:%i') AS realizado_em
+         FROM intranet_sorteios
+        ORDER BY id DESC
+        LIMIT 100`
+    );
+    return res.json(
+      (rows as MysqlRow[]).map((row) => {
+        let participantes: { id: number; nome: string; setor: string }[] = [];
+        try {
+          participantes = JSON.parse(String(row.participantes || '[]'));
+        } catch {
+          participantes = [];
+        }
+        const fotoPath = funcionarioFotoPath(row.vencedor_foto);
+        return {
+          id: row.id,
+          premio: row.premio,
+          realizado_em: row.realizado_em,
+          realizado_por: row.realizado_por,
+          notificado: Boolean(row.notificacao_id || row.noticia_id),
+          participantes_total: row.participantes_total,
+          participantes,
+          vencedor: {
+            id: row.vencedor_funcionario_id,
+            nome: row.vencedor_nome,
+            setor: row.vencedor_setor || '',
+            imagem_url: fotoPath ? backendPublicUrl(fotoPath) : null
+          }
+        };
+      })
+    );
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar historico.' });
+  }
 });
 
 router.get('/admin/intranet/noticias', async (req: Request, res: Response) => {
@@ -2573,7 +3222,7 @@ router.get('/meus-equipamentos', async (req: Request, res: Response) => {
   if (!session) {
     return res.status(403).json({
       success: false,
-      error: 'Sessao invalida ou expirada.'
+      error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE
     });
   }
 

@@ -1,15 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useNotifications } from '../notifications/NotificationsProvider';
 import { handlePhotoFallback } from '../services/photoFallback';
 import { SISTEMAS } from '../config/sistemas';
 import { ApexLogo } from './ApexLogo';
+import { EnfeiteCabecalho, EnfeiteLogo, EnfeiteSaudacao, useTemaFestivo } from '../temas/TemaFestivo';
 import logoAlpes from '../assets/brand/logo-alpes-white.png';
 
 type HeaderProps = {
   title: string;
+  onAbrirTour: () => void;
 };
+
+// Item do sino: noticia (abre a pagina de Noticias) ou aviso (so leitura no proprio sino).
+type ItemSino = {
+  chave: string;
+  tipo: 'noticia' | 'aviso';
+  id: number;
+  titulo: string;
+  mensagem?: string;
+  imagem_url?: string | null;
+  data?: string | null;
+  lido: boolean;
+};
+
+function dataParaOrdenar(value?: string | null) {
+  const time = value ? new Date(value).getTime() : NaN;
+  return Number.isNaN(time) ? 0 : time;
+}
 
 function formatNotificationDate(value?: string | null) {
   if (!value) return '';
@@ -18,14 +37,16 @@ function formatNotificationDate(value?: string | null) {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, onAbrirTour }: HeaderProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { noticias, unreadCount, isRead, markAsRead, markAllAsRead } = useNotifications();
+  const { noticias, avisos, unreadCount, isRead, isAvisoRead, markAsRead, markAvisoRead, markAllAsRead } =
+    useNotifications();
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [sistemasOpen, setSistemasOpen] = useState(false);
+  const { tema: temaFestivo, oculto: enfeitesOcultos, alternarOculto: alternarEnfeites } = useTemaFestivo();
 
   const userName = user?.nome_completo || 'Usuario';
   const userAvatar = user?.imagem_url || 'https://dummyimage.com/40x40/cccccc/333333&text=U';
@@ -48,8 +69,39 @@ export function Header({ title }: HeaderProps) {
     };
   }, []);
 
-  function openNotificacao(id: number) {
-    markAsRead(id);
+  const itensSino = useMemo<ItemSino[]>(
+    () =>
+      [
+        ...noticias.map((noticia) => ({
+          chave: `noticia-${noticia.id}`,
+          tipo: 'noticia' as const,
+          id: noticia.id,
+          titulo: noticia.titulo,
+          data: noticia.data_publicacao,
+          lido: isRead(noticia.id)
+        })),
+        ...avisos.map((aviso) => ({
+          chave: `aviso-${aviso.id}`,
+          tipo: 'aviso' as const,
+          id: aviso.id,
+          titulo: aviso.titulo,
+          mensagem: aviso.mensagem,
+          imagem_url: aviso.imagem_url,
+          data: aviso.criado_em,
+          lido: isAvisoRead(aviso.id)
+        }))
+      ].sort((a, b) => dataParaOrdenar(b.data) - dataParaOrdenar(a.data)),
+    [noticias, avisos, isRead, isAvisoRead]
+  );
+
+  function marcarLido(item: ItemSino) {
+    if (item.tipo === 'noticia') markAsRead(item.id);
+    else markAvisoRead(item.id);
+  }
+
+  function openNotificacao(item: ItemSino) {
+    marcarLido(item);
+    if (item.tipo !== 'noticia') return;
     setNotifOpen(false);
     navigate('/noticias');
   }
@@ -61,7 +113,9 @@ export function Header({ title }: HeaderProps) {
 
   return (
     <header className="header-principal">
+      <EnfeiteCabecalho />
       <div className="header-esquerda">
+        <EnfeiteSaudacao />
       </div>
 
       <div className="header-centro">
@@ -70,6 +124,7 @@ export function Header({ title }: HeaderProps) {
             src={logoAlpes}
             alt="Logo Grupo Alpes"
           />
+          <EnfeiteLogo />
         </Link>
       </div>
 
@@ -78,6 +133,7 @@ export function Header({ title }: HeaderProps) {
           <div id="user-logged-in" style={{ display: 'flex' }}>
             <div
               id="user-profile-trigger"
+              data-tour="perfil"
               className="user-profile-trigger"
               onClick={(event) => {
                 event.stopPropagation();
@@ -96,6 +152,20 @@ export function Header({ title }: HeaderProps) {
             </div>
 
             <div className={`user-dropdown-menu ${menuOpen ? 'ativo' : ''}`}>
+              {temaFestivo ? (
+                <a
+                  href="#"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    alternarEnfeites();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <i className={`fas ${enfeitesOcultos ? 'fa-wand-magic-sparkles' : 'fa-eye-slash'}`} />
+                  {enfeitesOcultos ? 'Mostrar' : 'Esconder'} enfeites de{' '}
+                  {temaFestivo === 'natal' ? 'Natal' : 'Halloween'}
+                </a>
+              ) : null}
               <a
                 href="#"
                 onClick={(event) => {
@@ -110,7 +180,28 @@ export function Header({ title }: HeaderProps) {
           </div>
         </div>
 
-        <div className="sistemas-container" onClick={(event) => event.stopPropagation()}>
+        <button
+          className="header-btn"
+          type="button"
+          data-tour="tour"
+          aria-label="Fazer o tour pela intranet"
+          title="Tour pela intranet"
+          onClick={(event) => {
+            event.stopPropagation();
+            setMenuOpen(false);
+            setNotifOpen(false);
+            setSistemasOpen(false);
+            onAbrirTour();
+          }}
+        >
+          <i className="fa-regular fa-circle-question" />
+        </button>
+
+        <div
+          className="sistemas-container"
+          data-tour="sistemas"
+          onClick={(event) => event.stopPropagation()}
+        >
           <button
             className="header-btn"
             type="button"
@@ -174,7 +265,11 @@ export function Header({ title }: HeaderProps) {
           </div>
         </div>
 
-        <div className="notificacao-container" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="notificacao-container"
+          data-tour="notificacoes"
+          onClick={(event) => event.stopPropagation()}
+        >
           <button
             className="header-btn"
             type="button"
@@ -203,32 +298,49 @@ export function Header({ title }: HeaderProps) {
             </div>
 
             <div className="notificacoes-lista">
-              {noticias.length === 0 ? (
+              {itensSino.length === 0 ? (
                 <div className="notificacao-item notificacao-vazia">
-                  Nenhuma noticia no momento.
+                  Nenhuma notificacao no momento.
                 </div>
               ) : (
-                noticias.map((noticia) => {
-                  const unread = !isRead(noticia.id);
+                itensSino.map((item) => {
+                  const unread = !item.lido;
                   return (
                     <div
-                      key={noticia.id}
-                      className={`notificacao-item ${unread ? 'nao-lida' : ''}`}
-                      onClick={() => openNotificacao(noticia.id)}
+                      key={item.chave}
+                      className={`notificacao-item ${unread ? 'nao-lida' : ''}${
+                        item.tipo === 'aviso' ? ' notificacao-aviso' : ''
+                      }`}
+                      onClick={() => openNotificacao(item)}
                     >
                       <div className="notificacao-item-titulo">
                         {unread ? <span className="notif-dot" /> : null}
-                        <span>{noticia.titulo}</span>
+                        {item.tipo === 'aviso' ? (
+                          <span className="notificacao-aviso-icone" aria-hidden="true">
+                            <i className="fas fa-trophy" />
+                            {item.imagem_url ? (
+                              <img
+                                src={item.imagem_url}
+                                alt=""
+                                onError={(event) => {
+                                  event.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : null}
+                          </span>
+                        ) : null}
+                        <span>{item.titulo}</span>
                       </div>
+                      {item.mensagem ? <p className="notificacao-item-mensagem">{item.mensagem}</p> : null}
                       <div className="notificacao-item-meta">
-                        <span>{formatNotificationDate(noticia.data_publicacao)}</span>
+                        <span>{formatNotificationDate(item.data)}</span>
                         {unread ? (
                           <button
                             type="button"
                             className="notif-ler-btn"
                             onClick={(event) => {
                               event.stopPropagation();
-                              markAsRead(noticia.id);
+                              marcarLido(item);
                             }}
                           >
                             Marcar como lida
@@ -245,7 +357,7 @@ export function Header({ title }: HeaderProps) {
           </div>
         </div>
 
-        <label className="switch" aria-label="Alternar tema">
+        <label className="switch" aria-label="Alternar tema" data-tour="tema">
           <input
             id="theme-toggle"
             type="checkbox"

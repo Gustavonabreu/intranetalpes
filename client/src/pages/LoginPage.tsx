@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import logoAlpes from '../assets/brand/logo_grupo_preto.png';
+import { EnfeiteFundo, EnfeiteLoginSaudacao } from '../temas/TemaFestivo';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -64,7 +65,9 @@ export function LoginPage() {
 
   return (
     <main className="login-page-shell">
+      <EnfeiteFundo topo={0} />
       <div className="login-container">
+        <EnfeiteLoginSaudacao />
         <h2>Acesse a Intranet</h2>
 
         <form id="login-form" onSubmit={onSubmit}>

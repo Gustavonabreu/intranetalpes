@@ -17,7 +17,7 @@ function isPublicRoute(pathname: string) {
 }
 
 export function ProtectedRoute() {
-  const { loading, isAuthenticated, isAdmin, canAccessRoute } = useAuth();
+  const { loading, isAuthenticated, isAdmin, canAccessRoute, sessaoExpirada } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -26,7 +26,8 @@ export function ProtectedRoute() {
 
   if (!isAuthenticated) {
     const redirectTo = encodeURIComponent(`${location.pathname}${location.search}`);
-    return <Navigate to={`/login?next=${redirectTo}`} replace />;
+    const motivo = sessaoExpirada ? 'reason=session_expired&' : '';
+    return <Navigate to={`/login?${motivo}next=${redirectTo}`} replace />;
   }
 
   if (isAdmin || isPublicRoute(location.pathname)) {
@@ -55,7 +56,7 @@ export function PublicOnlyRoute() {
 }
 
 export function AdminOnlyRoute() {
-  const { loading, isAuthenticated, isAdmin } = useAuth();
+  const { loading, isAuthenticated, isAdmin, sessaoExpirada } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -64,7 +65,8 @@ export function AdminOnlyRoute() {
 
   if (!isAuthenticated) {
     const redirectTo = encodeURIComponent(`${location.pathname}${location.search}`);
-    return <Navigate to={`/login?next=${redirectTo}`} replace />;
+    const motivo = sessaoExpirada ? 'reason=session_expired&' : '';
+    return <Navigate to={`/login?${motivo}next=${redirectTo}`} replace />;
   }
 
   if (!isAdmin) {

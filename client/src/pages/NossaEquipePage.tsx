@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { legacyGetJson } from '../services/legacyApi';
-import { handlePhotoFallback } from '../services/photoFallback';
+import { FotoColaborador } from '../components/FotoColaborador';
+import { CampanhaFotoAtiva, temaFotoCampanha } from '../config/fotoCampanhas';
 import logoAlpesWhite from '../assets/brand/logo-alpes-white.png';
 import mountainImage from '../assets/brand/montanha.png';
 
@@ -11,6 +12,8 @@ type Funcionario = {
   email?: string;
   fone?: string;
   imagem_url?: string;
+  imagem_oficial_url?: string | null;
+  campanha?: CampanhaFotoAtiva;
 };
 
 function formatPhoneDigits(phone?: string) {
@@ -55,6 +58,9 @@ export function NossaEquipePage() {
     };
   }, []);
 
+  const campanhaAtiva = funcionarios.find((func) => func.campanha)?.campanha;
+  const temaAtivo = campanhaAtiva ? temaFotoCampanha(campanhaAtiva.tema) : null;
+
   return (
     <>
       <div className="faixa-titulo">
@@ -62,6 +68,16 @@ export function NossaEquipePage() {
           <h2>Nossa Equipe</h2>
         </div>
       </div>
+
+      {campanhaAtiva && temaAtivo ? (
+        <div className="equipe-campanha-faixa">
+          <span aria-hidden="true">{temaAtivo.emoji}</span>
+          <p>
+            <strong>{campanhaAtiva.nome}:</strong> as fotos estao no clima da campanha.
+            {campanhaAtiva.revelar ? ' Passe o mouse no card para ver como cada um esta hoje.' : ''}
+          </p>
+        </div>
+      ) : null}
 
       <div id="equipe-container" className="equipe-grid">
         {loading ? <p>Carregando equipe...</p> : null}
@@ -72,8 +88,8 @@ export function NossaEquipePage() {
               const phone = formatPhoneDigits(func.fone);
               const name = func.nome_formatado || 'Colaborador';
               const profileName = firstName(name);
-              const photoFallback = 'https://dummyimage.com/120x120/cccccc/333333&text=U';
-              const photoUrl = func.imagem_url || photoFallback;
+              const tema = func.campanha ? temaFotoCampanha(func.campanha.tema) : null;
+              const fotoHoje = func.campanha?.revelar ? func.imagem_oficial_url : null;
               const contactUrl = phone
                 ? `https://wa.me/${phone}`
                 : func.email
@@ -93,13 +109,20 @@ export function NossaEquipePage() {
                         <img src={logoAlpesWhite} alt="Grupo Alpes" />
                       </div>
 
-                      <div className="profile-pic-front">
-                        <img
-                          src={photoUrl}
-                          loading="lazy"
-                          alt={`Foto de ${name}`}
-                          onError={(event) => handlePhotoFallback(event, photoFallback)}
-                        />
+                      <div className="profile-pic-wrap">
+                        <div className="profile-pic-front">
+                          <FotoColaborador
+                            src={func.imagem_url}
+                            name={name}
+                            className="h-full w-full"
+                            initialsClassName="text-6xl"
+                          />
+                        </div>
+                        {tema ? (
+                          <span className="profile-pic-selo" title={func.campanha?.nome}>
+                            {tema.emoji}
+                          </span>
+                        ) : null}
                       </div>
 
                       <h3 className="profile-name-front">{name}</h3>
@@ -113,6 +136,15 @@ export function NossaEquipePage() {
                       <img className="mountain-graphic-equipe" src={mountainImage} alt="" aria-hidden="true" />
 
                       <div className="contact-details-equipe">
+                        {fotoHoje ? (
+                          <div className="contact-item-equipe contato-hoje">
+                            <img src={fotoHoje} alt={`Foto atual de ${name}`} loading="lazy" />
+                            <span>
+                              <strong>{profileName} hoje</strong>
+                            </span>
+                          </div>
+                        ) : null}
+
                         {phone ? (
                           <div className="contact-item-equipe">
                             <i className="fab fa-whatsapp" />

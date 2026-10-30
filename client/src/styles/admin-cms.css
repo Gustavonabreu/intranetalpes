@@ -1311,3 +1311,537 @@ body.dark-mode .noticia-form-periodo legend {
     grid-template-columns: 1fr;
   }
 }
+
+/* Campanhas de foto (Dia das Criancas, Natal...) */
+.campanhas-admin {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 260px 1fr;
+}
+
+.campanhas-lista-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.campanhas-lista-head h4,
+.campanha-detalhe-head h4 {
+  color: #0f172a;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.campanhas-lista-head .admin-btn,
+.campanha-detalhe-head .admin-btn {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px 12px;
+}
+
+.campanhas-lista ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.campanhas-lista li {
+  position: relative;
+}
+
+.campanha-item {
+  align-items: flex-start;
+  background: #fff;
+  border: 1px solid #e3e8ef;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  padding: 10px 64px 10px 10px;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  width: 100%;
+}
+
+.campanha-item:hover {
+  border-color: #93b4e6;
+}
+
+.campanha-item.ativo {
+  border-color: #0e4699;
+  box-shadow: 0 0 0 3px rgba(14, 70, 153, 0.12);
+}
+
+.campanha-item-emoji {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.campanha-item-info {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.campanha-item-info strong {
+  color: #0f172a;
+  font-size: 0.88rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campanha-item-info small {
+  color: #64748b;
+  font-size: 0.74rem;
+}
+
+.campanha-item-acoes {
+  display: flex;
+  gap: 4px;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}
+
+.campanha-item-acoes .admin-icon-btn {
+  height: 26px;
+  width: 26px;
+}
+
+.campanha-status {
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  justify-self: start;
+  letter-spacing: 0.03em;
+  margin-left: 8px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
+
+.campanha-item-info .campanha-status {
+  margin-left: 0;
+}
+
+.campanha-status.no-ar {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.campanha-status.agendada {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.campanha-status.encerrada,
+.campanha-status.desativada {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.campanha-temas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.campanha-tema {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cfd8dc;
+  border-radius: 999px;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 0.82rem;
+  gap: 6px;
+  padding: 5px 12px;
+}
+
+.campanha-tema.ativo {
+  background: #0e4699;
+  border-color: #0e4699;
+  color: #fff;
+}
+
+.campanha-datas {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.campanha-detalhe-head {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.campanha-detalhe-head p {
+  align-items: center;
+  color: #64748b;
+  display: flex;
+  font-size: 0.85rem;
+  margin: 4px 0 0;
+}
+
+.campanha-progresso {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0 12px;
+}
+
+.campanha-progresso-barra {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.campanha-progresso-barra span {
+  background: linear-gradient(90deg, #0e4699, #06b6d4);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.campanha-progresso small {
+  color: #64748b;
+}
+
+.campanha-filtros {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.campanha-busca {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #cfd8dc;
+  border-radius: 8px;
+  color: #94a3b8;
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 180px;
+  padding: 0 10px;
+}
+
+.campanha-busca input {
+  background: transparent;
+  border: 0;
+  font: inherit;
+  outline: none;
+  padding: 8px 0;
+  width: 100%;
+}
+
+.campanha-filtro-tabs {
+  background: #f1f5f9;
+  border-radius: 8px;
+  display: flex;
+  padding: 3px;
+}
+
+.campanha-filtro-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 5px 10px;
+}
+
+.campanha-filtro-tabs button.ativo {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  color: #0e4699;
+}
+
+.campanha-fotos {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.campanha-foto {
+  display: grid;
+  gap: 6px;
+  position: relative;
+}
+
+.campanha-foto-slot {
+  aspect-ratio: 1;
+  background: #f8fafc;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  cursor: pointer;
+  display: block;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.campanha-foto-slot:hover,
+.campanha-foto-slot.arrastando {
+  background: #eff6ff;
+  border-color: #0e4699;
+}
+
+.campanha-foto-slot.tem-foto {
+  border-style: solid;
+  border-color: #e3e8ef;
+}
+
+.campanha-foto-slot img {
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+  width: 100%;
+}
+
+.campanha-foto-vazia {
+  align-items: center;
+  color: #64748b;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.76rem;
+  font-weight: 600;
+  gap: 4px;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+}
+
+.campanha-foto-trocar,
+.campanha-foto-enviando {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.55);
+  color: #fff;
+  display: flex;
+  font-size: 0.78rem;
+  font-weight: 700;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+}
+
+.campanha-foto-trocar {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.campanha-foto-slot:hover .campanha-foto-trocar {
+  opacity: 1;
+}
+
+.campanha-foto-remover {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e3e8ef;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  color: #dc2626;
+  cursor: pointer;
+  display: flex;
+  height: 24px;
+  justify-content: center;
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  width: 24px;
+}
+
+.campanha-foto-info {
+  align-items: center;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.campanha-foto-info > span {
+  display: grid;
+  min-width: 0;
+}
+
+.campanha-foto-info strong,
+.campanha-foto-info small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campanha-foto-info strong {
+  color: #0f172a;
+  font-size: 0.72rem;
+}
+
+.campanha-foto-info small {
+  color: #94a3b8;
+  font-size: 0.66rem;
+}
+
+body.dark-mode .campanha-item,
+body.dark-mode .campanha-tema,
+body.dark-mode .campanha-busca,
+body.dark-mode .campanha-foto-remover {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark-mode .campanhas-lista-head h4,
+body.dark-mode .campanha-detalhe-head h4,
+body.dark-mode .campanha-item-info strong,
+body.dark-mode .campanha-foto-info strong,
+body.dark-mode .campanha-tema,
+body.dark-mode .campanha-busca input {
+  color: #f1f5f9;
+}
+
+body.dark-mode .campanha-tema.ativo {
+  background: #0e4699;
+}
+
+body.dark-mode .campanha-foto-slot {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+body.dark-mode .campanha-filtro-tabs {
+  background: #0f172a;
+}
+
+body.dark-mode .campanha-filtro-tabs button.ativo {
+  background: #1e293b;
+}
+
+@media (max-width: 760px) {
+  .campanhas-admin,
+  .campanha-datas {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tema da intranet (Halloween / Natal) */
+.tema-festivo-status {
+  color: #475569;
+  font-size: 0.9rem;
+  margin: 0 0 14px;
+}
+
+.tema-festivo-opcoes {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.tema-festivo-opcao {
+  align-items: flex-start;
+  background: #fff;
+  border: 2px solid #e2e8f0;
+  border-radius: 14px;
+  color: #0f172a;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  position: relative;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tema-festivo-opcao:hover {
+  border-color: #93b4e6;
+}
+
+.tema-festivo-opcao.ativo {
+  border-color: #0e4699;
+  box-shadow: 0 0 0 3px rgba(14, 70, 153, 0.15);
+}
+
+.tema-festivo-opcao small {
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.tema-festivo-previa {
+  align-items: flex-end;
+  border-radius: 10px;
+  color: #fff;
+  display: flex;
+  gap: 6px;
+  height: 64px;
+  justify-content: center;
+  margin-bottom: 4px;
+  padding: 8px;
+  width: 100%;
+}
+
+.tema-festivo-opcao.auto .tema-festivo-previa {
+  align-items: center;
+  background: linear-gradient(135deg, #0e4699, #3b82f6);
+}
+
+.tema-festivo-opcao.halloween .tema-festivo-previa {
+  background: linear-gradient(90deg, #1f1030 0%, #3b1d5e 55%, #8a3a0e 100%);
+}
+
+.tema-festivo-opcao.natal .tema-festivo-previa {
+  background: linear-gradient(90deg, #7f1d1d 0%, #b91c1c 50%, #166534 100%);
+}
+
+.tema-festivo-opcao.nenhum .tema-festivo-previa {
+  align-items: center;
+  background: #e2e8f0;
+  color: #64748b;
+}
+
+.tema-festivo-check {
+  align-items: center;
+  background: #0e4699;
+  border-radius: 999px;
+  color: #fff;
+  display: flex;
+  height: 22px;
+  justify-content: center;
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 22px;
+}
+
+.tema-festivo-acoes {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+body.dark-mode .tema-festivo-opcao {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+
+body.dark-mode .tema-festivo-status,
+body.dark-mode .tema-festivo-opcao small {
+  color: #94a3b8;
+}

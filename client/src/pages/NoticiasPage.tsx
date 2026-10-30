@@ -9,6 +9,7 @@ import {
 } from '../services/legacyApi';
 import { NOTICIA_VAZIA, NoticiaForm, NoticiaFormValues } from '../components/NoticiaForm';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
+import { AvisoFlutuante, mensagemDeErro, useAviso } from '../components/AvisoFlutuante';
 import '../styles/admin-cms.css';
 
 type Noticia = {
@@ -30,7 +31,7 @@ export function NoticiasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedNoticia, setSelectedNoticia] = useState<Noticia | null>(null);
-  const [adminFeedback, setAdminFeedback] = useState('');
+  const { aviso, avisar, fecharAviso } = useAviso();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingNoticia, setEditingNoticia] = useState<Noticia | null>(null);
   const autorPadrao = user?.nome_completo || 'Admin';
@@ -123,7 +124,6 @@ export function NoticiasPage() {
   }
 
   async function criarNoticia(values: NoticiaFormValues) {
-    setAdminFeedback('');
     try {
       await legacyMutateJson<{ success: boolean }>('POST', '/api/admin/intranet/noticias', {
         ...values,
@@ -131,28 +131,26 @@ export function NoticiasPage() {
       });
       setShowCreateForm(false);
       await refreshNoticias();
-      setAdminFeedback('Noticia criada com sucesso.');
+      avisar('Noticia criada com sucesso.');
       return true;
     } catch (err) {
-      setAdminFeedback(err instanceof Error ? err.message : 'Falha ao criar noticia.');
+      avisar(mensagemDeErro(err, 'Falha ao criar noticia.'), 'erro');
       return false;
     }
   }
 
   async function excluirNoticia(id: number) {
     if (!window.confirm('Excluir esta noticia?')) return;
-    setAdminFeedback('');
     try {
       await legacyMutateJson<{ success: boolean }>('DELETE', `/api/admin/intranet/noticias/${id}`);
       await refreshNoticias();
-      setAdminFeedback('Noticia removida.');
+      avisar('Noticia removida.');
     } catch (err) {
-      setAdminFeedback(err instanceof Error ? err.message : 'Falha ao excluir noticia.');
+      avisar(mensagemDeErro(err, 'Falha ao excluir noticia.'), 'erro');
     }
   }
 
   function openEditModal(noticia: Noticia) {
-    setAdminFeedback('');
     setEditingNoticia(noticia);
   }
 
@@ -162,7 +160,6 @@ export function NoticiasPage() {
 
   async function salvarEdicaoNoticia(values: NoticiaFormValues) {
     if (!editingNoticia?.id) return false;
-    setAdminFeedback('');
 
     try {
       await legacyMutateJson<{ success: boolean }>(
@@ -174,11 +171,11 @@ export function NoticiasPage() {
         }
       );
       await refreshNoticias();
-      setAdminFeedback('Noticia atualizada.');
+      avisar('Noticia atualizada.');
       closeEditModal();
       return true;
     } catch (err) {
-      setAdminFeedback(err instanceof Error ? err.message : 'Falha ao atualizar noticia.');
+      avisar(mensagemDeErro(err, 'Falha ao atualizar noticia.'), 'erro');
       return false;
     }
   }
@@ -219,7 +216,6 @@ export function NoticiasPage() {
                 type="button"
                 className="admin-btn primary noticias-admin-add"
                 onClick={() => {
-                  setAdminFeedback('');
                   setShowCreateForm(true);
                 }}
               >
@@ -227,7 +223,6 @@ export function NoticiasPage() {
               </button>
             )}
           </div>
-          {adminFeedback && !editingNoticia ? <p className="admin-feedback">{adminFeedback}</p> : null}
 
           {showCreateForm ? (
             <NoticiaForm
@@ -326,7 +321,6 @@ export function NoticiasPage() {
               </button>
             </div>
             <div className="admin-modal-body">
-              {adminFeedback ? <p className="admin-feedback admin-modal-feedback">{adminFeedback}</p> : null}
               <NoticiaForm
                 key={editingNoticia.id}
                 modo="editar"
@@ -340,6 +334,8 @@ export function NoticiasPage() {
           </div>
         </div>
       ) : null}
+
+      <AvisoFlutuante aviso={aviso} onClose={fecharAviso} />
     </>
   );
 }

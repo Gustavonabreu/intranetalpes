@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthProvider'
+import { TemaFestivoProvider } from './temas/TemaFestivo'
 import App from './app.tsx'
 import './index.css' // <-- O import do Tailwind DEVE estar aqui!
 import './styles/legacy/main.css'
@@ -12,7 +13,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <TemaFestivoProvider>
+          <App />
+        </TemaFestivoProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,

@@ -1,0 +1,118 @@
+/* Aviso flutuante (toast): feedback de salvar/excluir/erro, acima de modais */
+.aviso-flutuante {
+  align-items: flex-start;
+  animation: aviso-entrar 0.25s ease-out;
+  background: #fff;
+  border-left: 5px solid #16a34a;
+  border-radius: 12px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+  display: flex;
+  gap: 10px;
+  left: 50%;
+  max-width: min(460px, calc(100vw - 32px));
+  overflow: hidden;
+  padding: 14px 14px 16px;
+  position: fixed;
+  top: 24px;
+  transform: translateX(-50%);
+  width: max-content;
+  z-index: 2000; /* acima do modal (70) e do cabecalho/dropdowns (1000) */
+}
+
+.aviso-flutuante p {
+  color: #0f172a;
+  flex: 1;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.aviso-flutuante-icone {
+  color: #16a34a;
+  flex-shrink: 0;
+}
+
+.aviso-flutuante.erro {
+  border-left-color: #dc2626;
+}
+
+.aviso-flutuante.erro .aviso-flutuante-icone {
+  color: #dc2626;
+}
+
+.aviso-flutuante.info {
+  border-left-color: #0e4699;
+}
+
+.aviso-flutuante.info .aviso-flutuante-icone {
+  color: #0e4699;
+}
+
+.aviso-flutuante button {
+  background: none;
+  border: 0;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  padding: 2px;
+}
+
+.aviso-flutuante button:hover {
+  color: #334155;
+}
+
+/* Barra de tempo ate o aviso sumir (4s; erro fica 7s) */
+.aviso-flutuante-tempo {
+  animation: aviso-tempo 4s linear forwards;
+  background: #16a34a;
+  bottom: 0;
+  height: 3px;
+  left: 0;
+  opacity: 0.35;
+  position: absolute;
+  width: 100%;
+}
+
+.aviso-flutuante.erro .aviso-flutuante-tempo {
+  animation-duration: 7s;
+  background: #dc2626;
+}
+
+.aviso-flutuante.info .aviso-flutuante-tempo {
+  background: #0e4699;
+}
+
+@keyframes aviso-entrar {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+@keyframes aviso-tempo {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0;
+  }
+}
+
+body.dark-mode .aviso-flutuante {
+  background: #1e293b;
+}
+
+body.dark-mode .aviso-flutuante p {
+  color: #f1f5f9;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aviso-flutuante {
+    animation: none;
+  }
+}

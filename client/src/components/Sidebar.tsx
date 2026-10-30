@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { useNotifications } from '../notifications/NotificationsProvider';
 import  iconeFalaAlpes  from '../assets/brand/falaalpes.png';
+import { EnfeiteMenu } from '../temas/TemaFestivo';
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) => `nav-link${isActive ? ' ativo' : ''}`;
 
@@ -10,7 +11,7 @@ export function Sidebar() {
   const { pending } = useNotifications();
 
   return (
-    <aside className="coluna-nav icon-nav">
+    <aside className="coluna-nav icon-nav" data-tour="menu">
       <nav className="menu-principal">
         <ul>
           <li className="nav-item">
@@ -20,7 +21,7 @@ export function Sidebar() {
             </NavLink>
           </li>
 
-          <li className="nav-item has-submenu">
+          <li className="nav-item has-submenu" data-tour="menu-equipe">
             <NavLink to="/nossa-equipe" className={navLinkClass}>
               <i className="fas fa-users" />
               <span>Nossa Equipe</span>
@@ -35,7 +36,7 @@ export function Sidebar() {
             </ul>
           </li>
 
-          <li className="nav-item">
+          <li className="nav-item" data-tour="menu-noticias">
             <NavLink to="/noticias" className={navLinkClass}>
               {pending.noticias ? (
                 <span className="nav-badge-dot" aria-label="Novidades em Noticias" />
@@ -45,7 +46,7 @@ export function Sidebar() {
             </NavLink>
           </li>
 
-          <li className="nav-item">
+          <li className="nav-item" data-tour="menu-empresa">
             <NavLink to="/empresa" className={navLinkClass}>
               {pending.empresa ? (
                 <span className="nav-badge-dot" aria-label="Novidades em Sobre a Empresa" />
@@ -55,14 +56,14 @@ export function Sidebar() {
             </NavLink>
           </li>
 
-          <li className="nav-item">
+          <li className="nav-item" data-tour="menu-equipamentos">
             <NavLink to="/equipamentos" className={navLinkClass}>
               <i className="fa-regular fa-hard-drive" />
               <span>Equipamentos</span>
             </NavLink>
           </li>
           
-          <li className="nav-item">
+          <li className="nav-item" data-tour="menu-fala-alpes">
             <NavLink to="/fala-alpes" className={navLinkClass}>
               {pending.falaAlpes ? (
                 <span className="nav-badge-dot" aria-label="Novidades em Fala Alpes" />
@@ -84,7 +85,7 @@ export function Sidebar() {
           </li>
 
           {canAccessRoute('/admin/intranet') ? (
-            <li className="nav-item">
+            <li className="nav-item" data-tour="menu-admin">
               <NavLink to="/admin/intranet" className={navLinkClass}>
                 <i className="fa-solid fa-gear" />
                 <span>Admin Intranet</span>
@@ -93,7 +94,7 @@ export function Sidebar() {
           ) : null}
 
           {isAdmin ? (
-            <li className="nav-item">
+            <li className="nav-item" data-tour="menu-sorteador">
               <NavLink to="/utilitarios/sorteador" className={navLinkClass}>
                 <i className="fa-solid fa-question" />
                 <span>Sorteador</span>
@@ -104,6 +105,7 @@ export function Sidebar() {
           {/* Tela de acessos (/tecnologias) desativada temporariamente */}
         </ul>
       </nav>
+      <EnfeiteMenu />
     </aside>
   );
 }

@@ -827,3 +827,26 @@ body.dark-mode .theme-toggle-btn .fa-sun {
 
 
 
+
+/* Calendario conectado: aviso de mes vazio e link para reconectar a conta Google */
+.calendar-vazio {
+    margin: 12px 0 0;
+    color: var(--cor-texto-secundario);
+    font-size: 0.9em;
+    text-align: center;
+}
+
+.calendar-reconectar {
+    display: block;
+    margin: 10px auto 0;
+    background: none;
+    border: none;
+    color: var(--cor-texto-secundario);
+    font-size: 0.8em;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.calendar-reconectar:hover {
+    color: var(--cor-destaque);
+}

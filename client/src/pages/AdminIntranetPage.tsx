@@ -7,13 +7,19 @@ import {
   Clapperboard,
   Image as ImageIcon,
   ListOrdered,
+  PartyPopper,
+  Sparkles,
   UploadCloud,
   Youtube,
   X
 } from 'lucide-react';
-import defaultHeroImage from '../assets/brand/inicio_padrao.webp';
+import defaultHeroImage from '../assets/brand/inicio_padrao.png';
 import { useBodyScrollLock } from '../hooks/useBodyScrollLock';
 import { VideoFundo } from '../components/VideoFundo';
+import { AvisoFlutuante, mensagemDeErro, useAviso } from '../components/AvisoFlutuante';
+import { AdminFotoCampanhas } from '../components/AdminFotoCampanhas';
+import { AdminTemaFestivo } from '../components/AdminTemaFestivo';
+import { TemaFestivoModo, useTemaFestivo } from '../temas/TemaFestivo';
 import mountainImage from '../assets/brand/montanha.png';
 import { validarImagemUpload } from '../utils/imagemUpload';
 import {
@@ -31,13 +37,14 @@ import {
 } from '../components/AdminEventosCalendario';
 import '../styles/admin-cms.css';
 
-type ModalType = 'imagem' | 'eventos' | 'falaAlpes' | 'setores' | 'sobre' | null;
+type ModalType = 'imagem' | 'eventos' | 'falaAlpes' | 'setores' | 'sobre' | 'campanhas' | 'tema' | null;
 
 type IntranetConfig = {
   id?: number;
   imagem_inicial_url?: string | null;
   fala_alpes_video_url?: string | null;
   sobre_video_url?: string | null;
+  tema_festivo?: TemaFestivoModo | null;
 };
 
 type Noticia = {
@@ -81,7 +88,7 @@ function toDateTimeLocalValue(value: string | null | undefined) {
 export function AdminIntranetPage() {
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
-  const [feedback, setFeedback] = useState('');
+  const { aviso, avisar, fecharAviso } = useAviso();
   const [uploading, setUploading] = useState(false);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
 
@@ -107,6 +114,8 @@ export function AdminIntranetPage() {
   const [eventos, setEventos] = useState<EventoIntranet[]>([]);
 
   const [setores, setSetores] = useState<SetorOrdem[]>([]);
+  const [temaFestivoModo, setTemaFestivoModo] = useState<TemaFestivoModo>('auto');
+  const { recarregar: recarregarTemaFestivo } = useTemaFestivo();
 
   const modulos = [
     {
@@ -138,6 +147,18 @@ export function AdminIntranetPage() {
       title: 'Sobre a Empresa',
       description: 'Video de fundo da abertura da pagina Sobre a Empresa',
       icon: <Clapperboard size={36} />
+    },
+    {
+      id: 'campanhas' as const,
+      title: 'Campanhas de Foto',
+      description: 'Fotos tematicas por periodo (Dia das Criancas, Natal...)',
+      icon: <PartyPopper size={36} />
+    },
+    {
+      id: 'tema' as const,
+      title: 'Tema da Intranet',
+      description: 'Enfeites de Halloween e Natal para todos (automatico pela data)',
+      icon: <Sparkles size={36} />
     }
   ];
 
@@ -158,7 +179,6 @@ export function AdminIntranetPage() {
 
   async function loadAll() {
     setLoading(true);
-    setFeedback('');
     try {
       const [config, events, setoresOrdem] = await Promise.all([
         legacyGetJson<IntranetConfig>('/api/admin/intranet/config'),
@@ -171,13 +191,14 @@ export function AdminIntranetPage() {
       setHeroUrl(resolveMediaUrl(asText(config.imagem_inicial_url)));
       setFalaAlpesVideoUrl(asText(config.fala_alpes_video_url));
       setSobreVideoUrl(asText(config.sobre_video_url));
+      setTemaFestivoModo(config.tema_festivo || 'auto');
       applyEventos(events);
       setForbidden(false);
     } catch (error) {
       if (error instanceof LegacyApiError && error.status === 403) {
         setForbidden(true);
       } else {
-        setFeedback('Falha ao carregar dados do painel.');
+        avisar('Falha ao carregar dados do painel.', 'erro');
       }
     } finally {
       setLoading(false);
@@ -223,9 +244,10 @@ export function AdminIntranetPage() {
       await legacyMutateJson<{ success: boolean }>('PUT', '/api/admin/intranet/config', {
         imagem_inicial_url: url.trim()
       });
-      setFeedback(url.trim() ? 'Imagem inicial atualizada.' : 'Imagem padrao restaurada.');
+      avisar(url.trim() ? 'Imagem inicial atualizada.' : 'Imagem padrao restaurada.');
+      setActiveModal(null);
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao salvar imagem inicial.');
+      avisar(mensagemDeErro(error, 'Falha ao salvar imagem inicial.'), 'erro');
     }
   }
 
@@ -238,41 +260,58 @@ export function AdminIntranetPage() {
   async function salvarFalaAlpesVideo() {
     const trimmed = falaAlpesVideoUrl.trim();
     if (trimmed && !getYoutubeEmbedUrl(trimmed)) {
-      setFeedback('Informe um link valido do YouTube.');
+      avisar('Informe um link valido do YouTube.', 'erro');
       return;
     }
     try {
       await legacyMutateJson<{ success: boolean }>('PUT', '/api/admin/intranet/config', {
         fala_alpes_video_url: trimmed
       });
-      setFeedback('Video do Fala Alpes atualizado. Uma notificacao foi enviada aos colaboradores.');
+      avisar('Video do Fala Alpes atualizado. Uma notificacao foi enviada aos colaboradores.');
+      setActiveModal(null);
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao salvar o video.');
+      avisar(mensagemDeErro(error, 'Falha ao salvar o video.'), 'erro');
     }
   }
 
   async function enviarHeroArquivo(file: File) {
     const problema = validarImagemUpload(file);
     if (problema) {
-      setFeedback(problema);
+      avisar(problema, 'erro');
       return;
     }
     try {
       setUploading(true);
       const url = await uploadImageFile(file, 'intranet/hero');
       setHeroUrl(url);
-      setFeedback('Imagem enviada. Confira a previa e clique em "Salvar imagem" para publicar.');
+      avisar('Imagem enviada. Confira a previa e clique em "Salvar imagem" para publicar.', 'info');
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao enviar imagem.');
+      avisar(mensagemDeErro(error, 'Falha ao enviar imagem.'), 'erro');
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function salvarTemaFestivo(modo: TemaFestivoModo) {
+    try {
+      await legacyMutateJson<{ success: boolean }>('PUT', '/api/admin/intranet/config', {
+        tema_festivo: modo
+      });
+      setTemaFestivoModo(modo);
+      await recarregarTemaFestivo();
+      avisar('Tema da intranet atualizado.');
+      setActiveModal(null);
+      return true;
+    } catch (error) {
+      avisar(mensagemDeErro(error, 'Falha ao salvar o tema.'), 'erro');
+      return false;
     }
   }
 
   async function salvarSobreVideo(url = sobreVideoUrl) {
     const trimmed = url.trim();
     if (trimmed && !getYoutubeEmbedUrl(trimmed) && !/\.(mp4|webm)(\?.*)?$/i.test(trimmed)) {
-      setFeedback('Use um link do YouTube ou de um arquivo de video .mp4/.webm.');
+      avisar('Use um link do YouTube ou de um arquivo de video .mp4/.webm.', 'erro');
       return;
     }
     try {
@@ -280,13 +319,14 @@ export function AdminIntranetPage() {
         sobre_video_url: trimmed
       });
       setSobreVideoUrl(trimmed);
-      setFeedback(
+      avisar(
         trimmed
           ? 'Video de fundo atualizado.'
           : 'Video removido. A abertura volta a mostrar a imagem da montanha.'
       );
+      setActiveModal(null);
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao salvar o video.');
+      avisar(mensagemDeErro(error, 'Falha ao salvar o video.'), 'erro');
     }
   }
 
@@ -320,9 +360,9 @@ export function AdminIntranetPage() {
         ativo: true
       });
       await loadAll();
-      setFeedback('Noticia criada com sucesso.');
+      avisar('Noticia criada com sucesso.');
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao criar noticia.');
+      avisar(mensagemDeErro(error, 'Falha ao criar noticia.'), 'erro');
     }
   }
 
@@ -333,9 +373,9 @@ export function AdminIntranetPage() {
       setUploading(true);
       const url = await uploadImageFile(file, 'intranet/noticias');
       setNovaNoticia((prev) => ({ ...prev, imagem_destaque_url: url }));
-      setFeedback('Imagem da noticia enviada.');
+      avisar('Imagem da noticia enviada.');
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao enviar imagem da noticia.');
+      avisar(mensagemDeErro(error, 'Falha ao enviar imagem da noticia.'), 'erro');
     } finally {
       setUploading(false);
       event.target.value = '';
@@ -354,9 +394,9 @@ export function AdminIntranetPage() {
       setNoticias((prev) =>
         prev.map((item) => (item.id === noticiaId ? { ...item, imagem_destaque_url: url } : item))
       );
-      setFeedback('Imagem atualizada na noticia. Clique em "Salvar".');
+      avisar('Imagem atualizada na noticia. Clique em "Salvar".', 'info');
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao enviar imagem.');
+      avisar(mensagemDeErro(error, 'Falha ao enviar imagem.'), 'erro');
     } finally {
       setUploading(false);
       event.target.value = '';
@@ -369,9 +409,9 @@ export function AdminIntranetPage() {
         ...item,
         ativo: Boolean(item.ativo)
       });
-      setFeedback('Noticia atualizada.');
+      avisar('Noticia atualizada.');
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao atualizar noticia.');
+      avisar(mensagemDeErro(error, 'Falha ao atualizar noticia.'), 'erro');
     }
   }
 
@@ -380,9 +420,9 @@ export function AdminIntranetPage() {
     try {
       await legacyMutateJson<{ success: boolean }>('DELETE', `/api/admin/intranet/noticias/${id}`);
       setNoticias((prev) => prev.filter((item) => item.id !== id));
-      setFeedback('Noticia removida.');
+      avisar('Noticia removida.');
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao excluir noticia.');
+      avisar(mensagemDeErro(error, 'Falha ao excluir noticia.'), 'erro');
     }
   }
 
@@ -393,10 +433,10 @@ export function AdminIntranetPage() {
         ativo: Boolean(evento.ativo)
       });
       await reloadEventos();
-      setFeedback('Evento criado com sucesso.');
+      avisar('Evento criado com sucesso.');
       return true;
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao criar evento.');
+      avisar(mensagemDeErro(error, 'Falha ao criar evento.'), 'erro');
       return false;
     }
   }
@@ -408,10 +448,10 @@ export function AdminIntranetPage() {
         ativo: Boolean(item.ativo)
       });
       await reloadEventos();
-      setFeedback('Evento atualizado.');
+      avisar('Evento atualizado.');
       return true;
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao atualizar evento.');
+      avisar(mensagemDeErro(error, 'Falha ao atualizar evento.'), 'erro');
       return false;
     }
   }
@@ -421,10 +461,10 @@ export function AdminIntranetPage() {
     try {
       await legacyMutateJson<{ success: boolean }>('DELETE', `/api/admin/intranet/eventos/${id}`);
       setEventos((prev) => prev.filter((item) => item.id !== id));
-      setFeedback('Evento removido.');
+      avisar('Evento removido.');
       return true;
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao excluir evento.');
+      avisar(mensagemDeErro(error, 'Falha ao excluir evento.'), 'erro');
       return false;
     }
   }
@@ -445,9 +485,10 @@ export function AdminIntranetPage() {
         setores: setores.map((item) => item.setor)
       });
       setSetores((prev) => prev.map((item) => ({ ...item, configurado: true })));
-      setFeedback('Ordem dos setores atualizada.');
+      avisar('Ordem dos setores atualizada.');
+      setActiveModal(null);
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'Falha ao salvar ordem dos setores.');
+      avisar(mensagemDeErro(error, 'Falha ao salvar ordem dos setores.'), 'erro');
     }
   }
 
@@ -784,6 +825,15 @@ export function AdminIntranetPage() {
         return renderSetoresContent();
       case 'sobre':
         return renderSobreContent();
+      case 'campanhas':
+        return (
+          <div className="admin-block">
+            <h3>Campanhas de foto</h3>
+            <AdminFotoCampanhas avisar={avisar} />
+          </div>
+        );
+      case 'tema':
+        return <AdminTemaFestivo modo={temaFestivoModo} onSalvar={salvarTemaFestivo} />;
       default:
         return null;
     }
@@ -796,7 +846,6 @@ export function AdminIntranetPage() {
     <section className="admin-panel-shell">
       <div className="admin-panel-head">
         <h2>Painel Administrativo da Intranet</h2>
-        {feedback ? <p className="admin-feedback">{feedback}</p> : null}
       </div>
 
       <div className="admin-modules-grid">
@@ -804,7 +853,6 @@ export function AdminIntranetPage() {
           <button
             key={modulo.id}
             onClick={() => {
-              setFeedback('');
               setActiveModal(modulo.id);
             }}
             className="admin-module-card"
@@ -827,13 +875,13 @@ export function AdminIntranetPage() {
               </button>
             </div>
             <div className="admin-modal-body">
-              {/* O feedback do topo da pagina fica atras do modal; repete aqui. */}
-              {feedback ? <p className="admin-feedback admin-modal-feedback">{feedback}</p> : null}
               {renderModalContent()}
             </div>
           </div>
         </div>
       ) : null}
+
+      <AvisoFlutuante aviso={aviso} onClose={fecharAviso} />
     </section>
   );
 }

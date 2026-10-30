@@ -1,0 +1,188 @@
+/*
+ * Temas festivos (Halloween / Natal). Ligados por html[data-festive="..."] (ver TemaFestivo.tsx).
+ * Enfeites nunca recebem clique e nao criam camadas (z-index) no layout: o fundo fica numa camada
+ * fixa atras da pagina e o container fica levemente translucido para ele aparecer. Assim modais,
+ * dropdowns do cabecalho e o tour continuam por cima de tudo como antes.
+ */
+
+/* ───────── Animacoes ───────── */
+@keyframes festivo-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+@keyframes festivo-swing { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+@keyframes festivo-flap { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.55); } }
+@keyframes festivo-drift { 0% { transform: translate(0, 0); } 50% { transform: translate(14px, -6px); } 100% { transform: translate(0, 0); } }
+@keyframes festivo-glow { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+@keyframes festivo-fly {
+  0% { transform: translateX(-12rem) translateY(0); }
+  50% { transform: translateX(50vw) translateY(-6px); }
+  70%, 100% { transform: translateX(105vw) translateY(4px); }
+}
+@keyframes festivo-fog { 0%, 100% { transform: translateX(-4%); } 50% { transform: translateX(4%); } }
+@keyframes festivo-twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.9; } }
+@keyframes festivo-pisca { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes festivo-neve {
+  0% { transform: translate3d(0, -5vh, 0); }
+  50% { transform: translate3d(18px, 50vh, 0); }
+  100% { transform: translate3d(-6px, 105vh, 0); }
+}
+
+.festivo-float { animation: festivo-float 5s ease-in-out infinite; }
+.festivo-swing { transform-origin: top center; animation: festivo-swing 4s ease-in-out infinite; }
+.festivo-flap { transform-origin: center; animation: festivo-flap 0.5s ease-in-out infinite; }
+.festivo-drift { animation: festivo-drift 9s ease-in-out infinite; }
+.festivo-glow { animation: festivo-glow 3s ease-in-out infinite; }
+.festivo-fly { animation: festivo-fly 26s linear infinite; }
+.festivo-fog { animation: festivo-fog 14s ease-in-out infinite; }
+.festivo-twinkle { animation: festivo-twinkle 2.6s ease-in-out infinite; }
+.festivo-pisca { animation: festivo-pisca 1.6s ease-in-out infinite; }
+.festivo-neve { animation: festivo-neve linear infinite; top: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .festivo-float, .festivo-swing, .festivo-flap, .festivo-drift, .festivo-glow,
+  .festivo-fog, .festivo-twinkle, .festivo-pisca, .festivo-neve { animation: none; }
+  .festivo-fly { display: none; }
+}
+
+/* ───────── Camadas ───────── */
+/* Fundo da pagina: fixo, atras de tudo (acima so do fundo do body). */
+.festivo-fundo {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  user-select: none;
+  z-index: -1;
+}
+
+html[data-festive] .intranet-container {
+  background-color: color-mix(in srgb, var(--cor-surface) 88%, transparent);
+}
+
+/* Cabecalho: enfeites atras dos itens (itens posicionados sem z-index = pintados depois). */
+html[data-festive] .header-principal {
+  position: relative;
+}
+
+html[data-festive] .header-esquerda,
+html[data-festive] .header-centro,
+html[data-festive] .header-direita {
+  position: relative;
+}
+
+.festivo-header {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  user-select: none;
+}
+
+.festivo-saudacao {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.festivo-saudacao span {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+html[data-festive] .header-logo {
+  display: inline-block;
+  position: relative;
+}
+
+.festivo-logo {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  user-select: none;
+}
+
+/* Rodape do menu lateral */
+.festivo-menu {
+  align-items: flex-end;
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  margin-top: auto;
+  padding-top: 24px;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 1024px) {
+  .festivo-menu,
+  .festivo-saudacao {
+    display: none;
+  }
+}
+
+/* Login: o formulario fica acima do fundo enfeitado */
+html[data-festive] .login-container {
+  position: relative;
+  z-index: 1;
+}
+
+.festivo-login-saudacao {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 8px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.festivo-login-saudacao span {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+/* ───────── Halloween ───────── */
+html[data-festive="halloween"] .header-principal {
+  background: linear-gradient(90deg, #1f1030 0%, #3b1d5e 55%, #8a3a0e 100%);
+}
+
+html[data-festive="halloween"] .widget,
+html[data-festive="halloween"] .calendario-principal {
+  border-color: rgba(242, 118, 28, 0.35);
+  box-shadow:
+    0 0 0 1px rgba(124, 58, 237, 0.1),
+    0 6px 22px -10px rgba(242, 118, 28, 0.45),
+    0 10px 30px -18px rgba(124, 58, 237, 0.55);
+}
+
+html[data-festive="halloween"] ::selection { background: rgba(242, 118, 28, 0.35); }
+html[data-festive="halloween"] ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #f2761c, #7c3aed);
+  border-radius: 8px;
+}
+html[data-festive="halloween"] * { scrollbar-color: rgba(242, 118, 28, 0.8) transparent; }
+
+/* ───────── Natal ───────── */
+html[data-festive="natal"] .header-principal {
+  background: linear-gradient(90deg, #7f1d1d 0%, #b91c1c 50%, #166534 100%);
+}
+
+html[data-festive="natal"] .widget,
+html[data-festive="natal"] .calendario-principal {
+  border-color: rgba(185, 28, 28, 0.3);
+  box-shadow:
+    0 0 0 1px rgba(22, 101, 52, 0.12),
+    0 6px 22px -10px rgba(185, 28, 28, 0.4),
+    0 10px 30px -18px rgba(22, 101, 52, 0.5);
+}
+
+html[data-festive="natal"] ::selection { background: rgba(185, 28, 28, 0.25); }
+html[data-festive="natal"] ::-webkit-scrollbar-thumb {
+  background: repeating-linear-gradient(135deg, #b91c1c 0 8px, #ffffff 8px 14px);
+  border-radius: 8px;
+}
+html[data-festive="natal"] * { scrollbar-color: rgba(185, 28, 28, 0.8) transparent; }

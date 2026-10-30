@@ -246,7 +246,7 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
   const weekLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab'];
 
   return (
-    <aside className={`coluna-widgets${collapsed ? ' recolhida' : ''}`}>
+    <aside className={`coluna-widgets${collapsed ? ' recolhida' : ''}`} data-tour="widgets">
       <button
         id="toggle-widgets-btn"
         title="Alternar barra lateral"

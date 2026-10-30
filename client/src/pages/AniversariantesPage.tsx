@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Cake, PartyPopper } from 'lucide-react';
 import { legacyGetJson } from '../services/legacyApi';
 import { FotoColaborador } from '../components/FotoColaborador';
+import { CampanhaFotoAtiva } from '../config/fotoCampanhas';
 import aniversariantesBg from '../assets/brand/aniversariantes.png';
 import '../styles/aniversariantes.css';
 
@@ -19,6 +20,8 @@ type Funcionario = {
   setor?: string;
   aniversario?: string;
   imagem_url?: string;
+  imagem_oficial_url?: string | null;
+  campanha?: CampanhaFotoAtiva;
 };
 
 const CONFETES = [
@@ -210,6 +213,7 @@ export function AniversariantesPage() {
                       <div className="aniv-aro rounded-full bg-gradient-to-tr from-blue-600 via-cyan-400 to-blue-600 p-1 shadow-xl">
                         <FotoColaborador
                           src={func.imagem_url}
+                          revelarSrc={func.campanha?.revelar ? func.imagem_oficial_url : null}
                           name={name}
                           className="h-32 w-32 rounded-full border-4 border-white dark:border-slate-900"
                           initialsClassName="text-4xl"
@@ -303,6 +307,7 @@ export function AniversariantesPage() {
                       <div className="aspect-square bg-slate-200 overflow-hidden dark:bg-slate-700">
                         <FotoColaborador
                           src={func.imagem_url}
+                          revelarSrc={func.campanha?.revelar ? func.imagem_oficial_url : null}
                           name={name}
                           className="w-full h-full transition-transform duration-500 hover:scale-105"
                           initialsClassName="text-8xl"
