@@ -46,5 +46,7 @@ GOOGLE_REDIRECT_URI=
 
 # Cadastro de funcionarios (pessoas/funcionarios). Trocar para o banco de prod quando migrar.
 FUNCIONARIOS_DATABASE=alpes_dev
-# Base publica da coluna funcionarios.foto (opcional; sem ela usa a foto legada por codusu)
-FUNCIONARIO_FOTO_BASE_URL=
+# Fotos dos funcionarios no sistema novo (Apex): {SOURCE_URL}/{funcionarios.foto}, repassadas pela intranet
+FUNCIONARIO_FOTO_SOURCE_URL=https://apex-dev.alpesmidia.digital/api/rh/fotos
+# Credencial de servico enviada ao Apex na busca da foto, ex.: Authorization: Bearer <token>
+FUNCIONARIO_FOTO_AUTH_HEADER=

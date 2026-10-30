@@ -52,8 +52,17 @@ const USER_PHOTO_EXTENSIONS = (process.env.USER_PHOTO_EXTENSIONS || 'jpg,jpeg,pn
   .filter(Boolean);
 // Banco de onde vem o cadastro de funcionarios (pessoas/funcionarios). Hoje alpes_dev; trocar para prod via env.
 const FUNCIONARIOS_DATABASE = (process.env.FUNCIONARIOS_DATABASE || 'alpes_dev').trim();
-// Base publica para a coluna funcionarios.foto (nome de arquivo). Sem ela, usa a foto legada por codusu.
-const FUNCIONARIO_FOTO_BASE_URL = (process.env.FUNCIONARIO_FOTO_BASE_URL || '').trim();
+// Fotos de funcionarios do sistema novo (Apex): {FUNCIONARIO_FOTO_SOURCE_URL}/{funcionarios.foto}.
+// A API do Apex exige autenticacao, entao a intranet busca no servidor e repassa (/api/funcionario-foto).
+// FUNCIONARIO_FOTO_AUTH_HEADER (opcional) e enviado nessa busca, ex.: "Authorization: Bearer <token>".
+const FUNCIONARIO_FOTO_SOURCE_URL = (
+  process.env.FUNCIONARIO_FOTO_SOURCE_URL || 'https://apex-dev.alpesmidia.digital/api/rh/fotos'
+)
+  .trim()
+  .replace(/\/+$/, '');
+const FUNCIONARIO_FOTO_AUTH_HEADER = (process.env.FUNCIONARIO_FOTO_AUTH_HEADER || '').trim();
+// Nome gerado pelo Apex (hash + extensao); qualquer outra coisa e recusada (evita path traversal).
+const FUNCIONARIO_FOTO_ARQUIVO_PATTERN = /^[a-z0-9_-]{8,128}\.(jpe?g|png|webp)$/i;
 const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID || '').trim();
 const GOOGLE_CLIENT_SECRET = (process.env.GOOGLE_CLIENT_SECRET || '').trim();
 const GOOGLE_REDIRECT_URI = (process.env.GOOGLE_REDIRECT_URI || '').trim();
@@ -340,12 +349,24 @@ function compareBySetorOrdem(ordem: Map<string, number>, a: unknown, b: unknown)
   return keyA.localeCompare(keyB, 'pt-BR');
 }
 
+// Foto vem so do sistema novo (funcionarios.foto). Sem foto la, o front mostra as iniciais.
 function funcionarioImageUrl(row: MysqlRow) {
   const foto = String(row.foto || '').trim();
-  if (foto && FUNCIONARIO_FOTO_BASE_URL) {
-    return `${normalizePhotoBaseUrl(FUNCIONARIO_FOTO_BASE_URL)}/${encodeURIComponent(foto)}`;
-  }
-  return userImageUrl({ codusu: row.legado_codusu });
+  if (!FUNCIONARIO_FOTO_SOURCE_URL || !FUNCIONARIO_FOTO_ARQUIVO_PATTERN.test(foto)) return null;
+  const proxyPath = `/api/funcionario-foto/${encodeURIComponent(foto)}`;
+  return USER_PHOTO_PROXY_PUBLIC_BASE_URL
+    ? `${USER_PHOTO_PROXY_PUBLIC_BASE_URL.replace(/\/+$/, '')}${proxyPath}`
+    : proxyPath;
+}
+
+function funcionarioFotoHeaders() {
+  const separator = FUNCIONARIO_FOTO_AUTH_HEADER.indexOf(':');
+  if (separator <= 0) return undefined;
+  return {
+    [FUNCIONARIO_FOTO_AUTH_HEADER.slice(0, separator).trim()]: FUNCIONARIO_FOTO_AUTH_HEADER.slice(
+      separator + 1
+    ).trim()
+  };
 }
 
 function inferUserRoleFromRow(row: MysqlRow): 'admin' | 'user' {
@@ -999,6 +1020,39 @@ router.get('/foto/:id', async (req: Request, res: Response) => {
   res.setHeader('Content-Type', result.contentType);
   res.setHeader('Cache-Control', 'private, max-age=300');
   return res.send(result.buffer);
+});
+
+router.get('/funcionario-foto/:arquivo', async (req: Request, res: Response) => {
+  if (USER_PHOTO_PROXY_REQUIRE_AUTH && !getSessionUser(req)) {
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.' });
+  }
+
+  const arquivo = String(req.params.arquivo || '');
+  if (!FUNCIONARIO_FOTO_ARQUIVO_PATTERN.test(arquivo)) {
+    return res.status(400).json({ error: 'Arquivo de foto invalido.' });
+  }
+
+  try {
+    const response = await fetch(`${FUNCIONARIO_FOTO_SOURCE_URL}/${arquivo}`, {
+      headers: funcionarioFotoHeaders(),
+      signal: AbortSignal.timeout(10000)
+    });
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok || !contentType.startsWith('image/')) {
+      if (response.status === 401 || response.status === 403) {
+        console.warn(
+          `Foto de funcionario: o Apex recusou o acesso (${response.status}). Configure FUNCIONARIO_FOTO_AUTH_HEADER.`
+        );
+      }
+      return res.status(404).json({ error: 'Foto nao encontrada.' });
+    }
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.send(Buffer.from(await response.arrayBuffer()));
+  } catch {
+    return res.status(502).json({ error: 'Falha ao buscar a foto.' });
+  }
 });
 
 router.post('/auth/login', async (req: Request, res: Response) => {
