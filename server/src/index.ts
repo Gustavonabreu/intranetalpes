@@ -1,18 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import apiRoutes from './routes/api.routes.js';
+import { UPLOADS_DIR } from './config/paths.js';
 
 // Carrega as variáveis de ambiente
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsDir = path.resolve(__dirname, '../uploads');
+const uploadsDir = UPLOADS_DIR;
 
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')

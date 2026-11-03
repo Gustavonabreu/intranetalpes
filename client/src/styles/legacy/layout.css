@@ -619,9 +619,16 @@ body.dark-mode .theme-toggle-btn .fa-sun {
 
 /* --- ESTADO RECOLHIDO (LÓGICA CORRIGIDA) --- */
 .coluna-widgets.recolhida {
-    /* A coluna encolhe para uma largura mínima, não para zero */
-    width: 0px;
+    /* Fica uma faixa estreita para o botao (40px, comecando 20px antes) aparecer inteiro */
+    width: 28px;
     border-left-color: transparent; /* Deixa a borda invisível */
+}
+
+.coluna-widgets.recolhida #toggle-widgets-btn {
+    background-color: var(--cor-destaque);
+    border-color: var(--cor-destaque);
+    color: var(--cor-texto-invertido, #fff);
+    box-shadow: 0 4px 12px rgba(14, 70, 153, 0.3);
 }
 
 /* Quando recolhida, o CONTEÚDO fica invisível */

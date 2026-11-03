@@ -2,16 +2,14 @@ import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Router, Request, Response } from 'express';
 import { mysqlPool } from '../config/mysql.js';
+import { RUNTIME_DIR, UPLOADS_DIR } from '../config/paths.js';
 import { fetchEquipamentosByGlpiUserId } from '../../services/glpiDbService.js';
 
 const router = Router();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsRootDir = path.resolve(__dirname, '../../uploads');
-const runtimeDir = path.resolve(__dirname, '../../.runtime');
+const uploadsRootDir = UPLOADS_DIR;
+const runtimeDir = RUNTIME_DIR;
 const authStateFile = path.join(runtimeDir, 'auth-state.json');
 
 type SessionUser = {

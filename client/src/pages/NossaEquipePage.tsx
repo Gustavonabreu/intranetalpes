@@ -4,6 +4,7 @@ import { FotoColaborador } from '../components/FotoColaborador';
 import { CampanhaFotoAtiva, temaFotoCampanha } from '../config/fotoCampanhas';
 import logoAlpesWhite from '../assets/brand/logo-alpes-white.png';
 import mountainImage from '../assets/brand/montanha.png';
+import { EnfeiteCardEquipe } from '../temas/TemaFestivo';
 
 type Funcionario = {
   id?: number;
@@ -103,6 +104,7 @@ export function NossaEquipePage() {
 
               return (
                 <div className="card-container-equipe" key={func.id || `${name}-${index}`}>
+                  <EnfeiteCardEquipe />
                   <article className="card-equipe modelo-assinatura">
                     <div className="card-content-equipe">
                       <div className="card-logo-equipe">

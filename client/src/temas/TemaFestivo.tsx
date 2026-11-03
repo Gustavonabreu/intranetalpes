@@ -8,7 +8,15 @@ import {
   HalloweenMenu,
   HalloweenSaudacao
 } from './HalloweenTheme';
-import { NatalFundo, NatalHeader, NatalLoginSaudacao, NatalLogo, NatalMenu, NatalSaudacao } from './NatalTheme';
+import {
+  GorroCard,
+  NatalFundo,
+  NatalHeader,
+  NatalLoginSaudacao,
+  NatalLogo,
+  NatalMenu,
+  NatalSaudacao
+} from './NatalTheme';
 import '../styles/tema-festivo.css';
 
 export type TemaFestivo = 'halloween' | 'natal';
@@ -130,6 +138,13 @@ export function EnfeiteFundo({ topo }: { topo?: number }) {
   const { temaVisivel } = useTemaFestivo();
   if (temaVisivel === 'halloween') return <HalloweenFundo topo={topo} />;
   if (temaVisivel === 'natal') return <NatalFundo />;
+  return null;
+}
+
+// Canto dos cards da Nossa Equipe (so no Natal: o gorro no card).
+export function EnfeiteCardEquipe() {
+  const { temaVisivel } = useTemaFestivo();
+  if (temaVisivel === 'natal') return <GorroCard className="card-gorro-natal" />;
   return null;
 }
 

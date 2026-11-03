@@ -20,6 +20,47 @@ export function GorroNoel({ className }: { className?: string }) {
   );
 }
 
+// Gorro maior, com volume, para "vestir" o canto dos cards da Nossa Equipe.
+// Os gradientes sao iguais em todos os cards, entao repetir os ids nao muda nada.
+export function GorroCard({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 140 110" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id="gorro-card-vermelho" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ef4444" />
+          <stop offset="0.55" stopColor="#c81e1e" />
+          <stop offset="1" stopColor="#8f1414" />
+        </linearGradient>
+        <radialGradient id="gorro-card-pelo" cx="0.4" cy="0.35" r="0.75">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="0.7" stopColor="#f3f4f6" />
+          <stop offset="1" stopColor="#d1d5db" />
+        </radialGradient>
+      </defs>
+      {/* Corpo do gorro: sobe e cai para a direita, ate o pompom */}
+      <path
+        d="M18 70 C22 38 46 12 76 12 C98 12 114 28 118 58 C116 72 112 80 108 84 C104 66 96 54 86 52 C80 58 82 66 84 74 Z"
+        fill="url(#gorro-card-vermelho)"
+      />
+      <path d="M30 64 C36 40 54 22 76 20 C60 30 48 46 44 66 Z" fill="#ffffff" opacity="0.14" />
+      <path d="M96 52 C104 58 108 68 108 84 C112 76 114 66 112 56 Z" fill="#000000" opacity="0.18" />
+      {/* Barra de pelucia, com bordas fofas */}
+      <g fill="url(#gorro-card-pelo)">
+        <rect x="8" y="62" width="84" height="22" rx="11" transform="rotate(-6 50 73)" />
+        {[14, 26, 38, 50, 62, 74, 86].map((x, i) => (
+          <circle key={x} cx={x} cy={i % 2 ? 64 - x * 0.1 : 66 - x * 0.1} r="7" />
+        ))}
+        {[16, 30, 44, 58, 72, 86].map((x) => (
+          <circle key={`b${x}`} cx={x} cy={84 - x * 0.1} r="6" />
+        ))}
+      </g>
+      {/* Pompom */}
+      <circle cx="110" cy="88" r="14" fill="url(#gorro-card-pelo)" />
+      <circle cx="105" cy="83" r="4" fill="#ffffff" opacity="0.9" />
+    </svg>
+  );
+}
+
 export function Floco({ className, style }: { className?: string; style?: CSSProperties }) {
   return (
     <svg

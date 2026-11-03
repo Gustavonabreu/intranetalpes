@@ -257,11 +257,13 @@ export function AniversariantesPage() {
             spaceBetween={12}
             slidesPerView={1}
             centeredSlides={false}
-            loop={aniversariantesDoMes.length > 2}
+            centerInsufficientSlides
+            // Loop/autoplay so quando sobra gente alem do que cabe na tela (ate 4 por vez).
+            loop={aniversariantesDoMes.length > 4}
             autoplay={
-              aniversariantesDoMes.length > 2
+              aniversariantesDoMes.length > 4
                 ? {
-                    delay: 2000,
+                    delay: 2500,
                     disableOnInteraction: false,
                     pauseOnMouseEnter: true
                   }
@@ -271,12 +273,20 @@ export function AniversariantesPage() {
               clickable: true
             }}
             breakpoints={{
-              768: {
+              560: {
                 slidesPerView: 2,
                 spaceBetween: 14
+              },
+              900: {
+                slidesPerView: 3,
+                spaceBetween: 16
+              },
+              1200: {
+                slidesPerView: 4,
+                spaceBetween: 16
               }
             }}
-            className="mt-2 md:mt-3 pb-4 md:pb-6 w-full max-w-[960px] mx-auto"
+            className="mt-2 md:mt-3 pb-8 md:pb-10 w-full max-w-[1120px] mx-auto"
           >
             {aniversariantesDoMes.map((func, index) => {
               const day = getBirthdayDay(func.aniversario);
@@ -285,7 +295,7 @@ export function AniversariantesPage() {
 
               return (
                 <SwiperSlide key={func.id || `${name}-${index}`}>
-                  <div className="p-0.5 md:p-1 w-full max-w-[430px] mx-auto">
+                  <div className="p-0.5 md:p-1 w-full max-w-[250px] mx-auto">
                     <div
                       className={`
                         relative bg-white rounded-3xl overflow-hidden border shadow-lg
@@ -299,7 +309,7 @@ export function AniversariantesPage() {
                       `}
                     >
                       {hoje && (
-                        <span className="absolute top-4 left-4 z-10 inline-flex items-center gap-1 rounded-full bg-blue-600 px-3 py-1 text-xs font-bold text-white shadow-lg">
+                        <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg">
                           <PartyPopper size={12} /> HOJE
                         </span>
                       )}
@@ -310,34 +320,33 @@ export function AniversariantesPage() {
                           revelarSrc={func.campanha?.revelar ? func.imagem_oficial_url : null}
                           name={name}
                           className="w-full h-full transition-transform duration-500 hover:scale-105"
-                          initialsClassName="text-8xl"
+                          initialsClassName="text-6xl"
                         />
                       </div>
 
-                      <div className="p-2 md:p-5 text-center">
+                      <div className="px-3 pb-4 pt-3 text-center">
                         <h3
                           className="
-                            h-14
+                            h-11
                             flex
                             items-center
                             justify-center
                             text-center
                             text-slate-800
                             font-black
-                            text-lg
-                            md:text-xl
+                            text-sm
                             uppercase
                             leading-tight
-                            px-2
-                            mb-3
+                            px-1
+                            mb-2
                             dark:text-slate-100
                           "
                         >
                           {name}
                         </h3>
 
-                        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-sm shadow-md">
-                          <Cake size={16} /> DIA {day || '--'}
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-xs shadow-md">
+                          <Cake size={14} /> DIA {day || '--'}
                         </div>
                       </div>
                     </div>

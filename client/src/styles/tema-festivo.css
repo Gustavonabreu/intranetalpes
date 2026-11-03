@@ -186,3 +186,39 @@ html[data-festive="natal"] ::-webkit-scrollbar-thumb {
   border-radius: 8px;
 }
 html[data-festive="natal"] * { scrollbar-color: rgba(185, 28, 28, 0.8) transparent; }
+
+/* Gorro de Natal no canto superior direito dos cards da Nossa Equipe. */
+.card-container-equipe {
+  position: relative;
+}
+
+.card-gorro-natal {
+  filter: drop-shadow(0 6px 8px rgba(2, 9, 24, 0.35));
+  height: auto;
+  pointer-events: none;
+  position: absolute;
+  right: -26px;
+  top: -40px;
+  transform: rotate(16deg);
+  transform-origin: 30% 70%;
+  width: 128px;
+  z-index: 2;
+  animation: festivo-gorro-balanco 4s ease-in-out infinite;
+}
+
+@keyframes festivo-gorro-balanco {
+  0%, 100% { transform: rotate(16deg); }
+  50% { transform: rotate(12deg); }
+}
+
+@media (max-width: 640px) {
+  .card-gorro-natal {
+    right: -14px;
+    top: -30px;
+    width: 100px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-gorro-natal { animation: none; }
+}

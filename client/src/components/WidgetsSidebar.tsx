@@ -256,11 +256,14 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
     <aside className={`coluna-widgets${collapsed ? ' recolhida' : ''}`} data-tour="widgets">
       <button
         id="toggle-widgets-btn"
-        title="Alternar barra lateral"
+        title={collapsed ? 'Mostrar barra lateral' : 'Recolher barra lateral'}
+        aria-label={collapsed ? 'Mostrar barra lateral' : 'Recolher barra lateral'}
+        aria-expanded={!collapsed}
         type="button"
         onClick={() => setCollapsed((current) => !current)}
       >
-        <i className={`fas ${collapsed ? 'fa-chevron-left' : 'fa-chevron-right'}`} />
+        {/* Uma seta so: o CSS gira quando recolhida (aponta para abrir). */}
+        <i className="fas fa-chevron-right" />
       </button>
 
       <div className="widgets-content">
