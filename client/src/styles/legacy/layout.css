@@ -363,6 +363,67 @@ html,
     margin-top: 10px;
 }
 
+/* Posts Recentes: um por linha, separados por divisoria. */
+.posts-recentes {
+    list-style: none;
+    margin: -4px 0 0;
+    padding: 0;
+}
+
+.posts-recentes li + li {
+    border-top: 1px solid var(--cor-borda-suave);
+}
+
+.posts-recentes-item {
+    align-items: center;
+    border-radius: 6px;
+    color: var(--cor-texto-principal);
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    margin: 0 -8px;
+    padding: 10px 8px;
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.posts-recentes-item:hover {
+    background-color: color-mix(in srgb, var(--cor-destaque) 8%, transparent);
+    color: var(--cor-destaque);
+}
+
+.posts-recentes-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.posts-recentes-titulo {
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.posts-recentes-data {
+    color: var(--cor-texto-secundario, #6b7280);
+    font-size: 0.75rem;
+}
+
+.posts-recentes-seta {
+    color: var(--cor-texto-secundario, #9ca3af);
+    flex-shrink: 0;
+    transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.posts-recentes-item:hover .posts-recentes-seta {
+    color: var(--cor-destaque);
+    transform: translateX(2px);
+}
+
 .widget-event-item {
     white-space: normal;
     overflow-wrap: anywhere;
@@ -658,6 +719,34 @@ body.dark-mode .theme-toggle-btn .fa-sun {
     background: transparent;
 }
 
+/* Slides empilhados: o ativo entra com fade e um leve deslize/zoom. */
+.comunicados-trilho {
+    position: absolute;
+    inset: 0;
+}
+
+.comunicados-trilho .comunicados-slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(1.015);
+    transition: opacity 0.7s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.comunicados-trilho .comunicados-slide.ativo {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .comunicados-trilho .comunicados-slide {
+        transform: none;
+        transition: opacity 0.2s linear;
+    }
+}
+
 .comunicados-dots {
     position: absolute;
     left: 50%;
@@ -676,37 +765,87 @@ body.dark-mode .theme-toggle-btn .fa-sun {
     background: #bcc8dd;
     cursor: pointer;
     padding: 0;
+    transition: width 0.3s ease, background-color 0.3s ease;
 }
 
+/* O ponto ativo vira uma pilula, acompanhando a troca. */
 .comunicados-dot.ativo {
     background: var(--cor-destaque);
+    width: 24px;
 }
 
 .comunicados-nav {
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
-    width: 38px;
-    height: 38px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
     border-radius: 999px;
-    border: 1px solid rgba(0, 0, 0, 0.15);
-    background: rgba(255, 255, 255, 0.75);
-    color: #1c2f53;
+    border: none;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 6px 18px rgba(15, 35, 75, 0.18);
+    color: #0e4699;
     cursor: pointer;
     z-index: 4;
-    font-size: 28px;
-    line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    opacity: 0.85;
+    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.comunicados-nav svg {
+    display: block;
+}
+
+.my-swiper-avisos:hover .comunicados-nav {
+    opacity: 1;
+}
+
+.comunicados-nav:hover {
+    background: #0e4699;
+    color: #fff;
+    transform: translateY(-50%) scale(1.06);
+}
+
+.comunicados-nav:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 2px;
+    opacity: 1;
 }
 
 .comunicados-nav-prev {
-    left: 12px;
+    left: 16px;
 }
 
 .comunicados-nav-next {
-    right: 12px;
+    right: 16px;
+}
+
+body.dark-mode .comunicados-nav {
+    background: rgba(30, 41, 59, 0.9);
+    color: #e2e8f0;
+}
+
+body.dark-mode .comunicados-nav:hover {
+    background: #2563eb;
+    color: #fff;
+}
+
+@media (max-width: 640px) {
+    .comunicados-nav {
+        width: 36px;
+        height: 36px;
+    }
+
+    .comunicados-nav-prev {
+        left: 8px;
+    }
+
+    .comunicados-nav-next {
+        right: 8px;
+    }
 }
 
 @media (max-width: 1400px) {

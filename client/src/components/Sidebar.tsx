@@ -11,8 +11,9 @@ export function Sidebar() {
   const { pending } = useNotifications();
 
   return (
-    <aside className="coluna-nav icon-nav" data-tour="menu">
-      <nav className="menu-principal">
+    <aside className="coluna-nav icon-nav">
+      {/* O tour destaca so os icones: o aside estica ate o fim da pagina. */}
+      <nav className="menu-principal" data-tour="menu">
         <ul>
           <li className="nav-item">
             <NavLink to="/dashboard" className={navLinkClass}>

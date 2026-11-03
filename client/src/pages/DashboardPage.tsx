@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import clientesMapImage from '../assets/brand/clientes-map.png';
 import defaultHeroImage from '../assets/brand/inicio_padrao.png';
 import { LEGACY_API_BASE_URL, LegacyApiError, legacyGetJson } from '../services/legacyApi';
@@ -95,6 +96,8 @@ export function DashboardPage() {
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [avisosLoading, setAvisosLoading] = useState(true);
   const [currentAvisoIndex, setCurrentAvisoIndex] = useState(0);
+  const [avisosPausados, setAvisosPausados] = useState(false);
+  const toqueInicioX = useRef<number | null>(null);
   const [heroImage, setHeroImage] = useState(defaultHeroImage);
 
   function resolveMediaUrl(url: string) {
@@ -193,13 +196,14 @@ export function DashboardPage() {
     };
   }, []);
 
+  // Troca automatica; pausa com o mouse em cima e recomeca a contagem a cada troca (manual ou nao).
   useEffect(() => {
-    if (avisos.length <= 1) return;
-    const timer = window.setInterval(() => {
+    if (avisos.length <= 1 || avisosPausados) return;
+    const timer = window.setTimeout(() => {
       setCurrentAvisoIndex((prev) => (prev + 1) % avisos.length);
     }, 9000);
-    return () => window.clearInterval(timer);
-  }, [avisos.length]);
+    return () => window.clearTimeout(timer);
+  }, [avisos.length, avisosPausados, currentAvisoIndex]);
 
   function goToPreviousAviso() {
     setCurrentAvisoIndex((prev) => {
@@ -478,20 +482,47 @@ export function DashboardPage() {
         >
           {avisos.length > 0 ? (
             <>
-              <a
-                className="comunicados-slide"
-                href={avisos[currentAvisoIndex]?.link || '#'}
-                target="_blank"
-                rel="noreferrer"
+              {/* Todos os slides empilhados; o ativo aparece com fade (sem troca seca). */}
+              <div
+                className="comunicados-trilho"
+                onMouseEnter={() => setAvisosPausados(true)}
+                onMouseLeave={() => setAvisosPausados(false)}
+                onTouchStart={(event) => {
+                  toqueInicioX.current = event.touches[0]?.clientX ?? null;
+                  setAvisosPausados(true);
+                }}
+                onTouchEnd={(event) => {
+                  const inicio = toqueInicioX.current;
+                  const fim = event.changedTouches[0]?.clientX;
+                  toqueInicioX.current = null;
+                  setAvisosPausados(false);
+                  if (inicio === null || fim === undefined || Math.abs(fim - inicio) < 40) return;
+                  if (fim < inicio) goToNextAviso();
+                  else goToPreviousAviso();
+                }}
               >
-                <img
-                  className="comunicados-img"
-                  src={
-                    avisos[currentAvisoIndex]?.imagem_url || 'https://via.placeholder.com/900x300'
-                  }
-                  alt={avisos[currentAvisoIndex]?.titulo || `Aviso ${currentAvisoIndex + 1}`}
-                />
-              </a>
+                {avisos.map((aviso, index) => {
+                  const ativo = index === currentAvisoIndex;
+                  return (
+                    <a
+                      key={aviso.id ?? `aviso-${index}`}
+                      className={`comunicados-slide${ativo ? ' ativo' : ''}`}
+                      href={aviso.link || '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-hidden={!ativo}
+                      tabIndex={ativo ? 0 : -1}
+                    >
+                      <img
+                        className="comunicados-img"
+                        src={aviso.imagem_url || 'https://via.placeholder.com/900x300'}
+                        alt={aviso.titulo || `Aviso ${index + 1}`}
+                        loading={index === 0 ? 'eager' : 'lazy'}
+                      />
+                    </a>
+                  );
+                })}
+              </div>
 
               {avisos.length > 1 ? (
                 <>
@@ -501,7 +532,7 @@ export function DashboardPage() {
                     onClick={goToPreviousAviso}
                     aria-label="Comunicado anterior"
                   >
-                    ‹
+                    <ChevronLeft size={22} strokeWidth={2.5} />
                   </button>
                   <button
                     type="button"
@@ -509,7 +540,7 @@ export function DashboardPage() {
                     onClick={goToNextAviso}
                     aria-label="Próximo comunicado"
                   >
-                    ›
+                    <ChevronRight size={22} strokeWidth={2.5} />
                   </button>
                   <div className="comunicados-dots">
                     {avisos.map((_, index) => (

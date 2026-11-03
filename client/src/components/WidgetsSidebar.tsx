@@ -10,6 +10,13 @@ type PostRecente = {
   data_publicacao?: string;
 };
 
+// A API manda o DATETIME em ISO (UTC); mostra no fuso local como dd/mm/aaaa.
+function formatarDataPost(valor?: string) {
+  if (!valor) return '';
+  const data = new Date(valor);
+  return Number.isNaN(data.getTime()) ? '' : data.toLocaleDateString('pt-BR');
+}
+
 type MembroEquipe = {
   id?: number;
   nome_formatado?: string;
@@ -332,14 +339,17 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
         <div className="widget">
           <h3>Posts Recentes</h3>
           {posts.length > 0 ? (
-            <ul className="space-y-2 mt-3">
+            <ul className="posts-recentes">
               {posts.map((post) => (
-                <li key={post.id || post.titulo} className="py-0.5">
-                  <Link
-                    to="/noticias"
-                    className="text-black hover:text-gray-700 text-sm font-medium block truncate transition-colors"
-                  >
-                    {post.titulo || 'Post sem titulo'}
+                <li key={post.id || post.titulo}>
+                  <Link to="/noticias" className="posts-recentes-item">
+                    <span className="posts-recentes-texto">
+                      <span className="posts-recentes-titulo">{post.titulo || 'Post sem titulo'}</span>
+                      {formatarDataPost(post.data_publicacao) ? (
+                        <span className="posts-recentes-data">{formatarDataPost(post.data_publicacao)}</span>
+                      ) : null}
+                    </span>
+                    <ChevronRight size={16} className="posts-recentes-seta" />
                   </Link>
                 </li>
               ))}

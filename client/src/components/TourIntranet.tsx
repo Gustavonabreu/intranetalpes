@@ -197,7 +197,9 @@ export function TourIntranet({ aberto, nomeUsuario, onFechar }: TourIntranetProp
       setRect(null);
       return;
     }
-    elemento.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    // Alvo mais alto que a tela: mostra o comeco dele (centralizar cairia no meio da pagina).
+    const alto = elemento.getBoundingClientRect().height > window.innerHeight * 0.8;
+    elemento.scrollIntoView({ block: alto ? 'start' : 'center', inline: 'nearest', behavior: 'smooth' });
     let frame = 0;
     function medir() {
       cancelAnimationFrame(frame);

@@ -489,6 +489,31 @@ function sanitizeUserFromRow(row: MysqlRow): SessionUser {
   };
 }
 
+// Foto do usuario logado igual a da Nossa Equipe: campanha vigente, senao a oficial do Apex.
+// O vinculo usuario -> funcionario e o legado_codusu (ou o nome, para quem ainda nao tem).
+// Sem cadastro no Apex, fica a foto do sistema antigo.
+async function comFotoDoFuncionario(user: SessionUser): Promise<SessionUser> {
+  try {
+    const [rows] = await mysqlPool.query(
+      `SELECT f.funcionario_id, f.foto
+         FROM ${funcionariosTable('funcionarios')} f
+         JOIN ${funcionariosTable('pessoas')} p ON p.pessoa_id = f.pessoa_id
+        WHERE f.is_ativo = 1 AND (f.legado_codusu = ? OR (f.legado_codusu IS NULL AND p.nome = ?))
+        ORDER BY f.legado_codusu = ? DESC
+        LIMIT 1`,
+      [Number(user.id) || 0, user.nome_completo, Number(user.id) || 0]
+    );
+    const funcionario = (rows as MysqlRow[])[0];
+    if (!funcionario) return user;
+    const campanha = (await fetchFotosCampanhaAtivas()).get(Number(funcionario.funcionario_id));
+    const imagem = campanha?.imagem_url || funcionarioImageUrl(funcionario);
+    return imagem ? { ...user, imagem_url: imagem } : user;
+  } catch (error) {
+    console.error('Falha ao buscar foto do funcionario:', error);
+    return user;
+  }
+}
+
 function toBoolean(value: unknown, fallback = false) {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value === 1;
@@ -1274,7 +1299,7 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
     const sessionToken = createToken(32);
     const csrfToken = createToken(24);
-    const user = sanitizeUserFromRow(userRow);
+    const user = await comFotoDoFuncionario(sanitizeUserFromRow(userRow));
 
     sessionStore.set(sessionToken, { user, expiresAt: now() + SESSION_TTL_MS });
     csrfBySessionToken.set(sessionToken, csrfToken);
@@ -1305,7 +1330,7 @@ router.get('/auth/user', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
     }
 
-    const freshUser = sanitizeUserFromRow(users[0]);
+    const freshUser = await comFotoDoFuncionario(sanitizeUserFromRow(users[0]));
     const expiresAt = now() + SESSION_TTL_MS;
     sessionStore.set(session.sessionToken, { user: freshUser, expiresAt });
     persistAuthState();
