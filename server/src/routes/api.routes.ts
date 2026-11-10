@@ -1,6 +1,6 @@
 import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Router, Request, Response } from 'express';
 import { mysqlPool } from '../config/mysql.js';
@@ -1001,6 +1001,39 @@ async function ensureFeatureTables() {
         PRIMARY KEY (campanha_id, funcionario_id),
         CONSTRAINT fk_foto_campanha_fotos_campanha
           FOREIGN KEY (campanha_id) REFERENCES intranet_foto_campanhas(id)
+          ON DELETE CASCADE
+      )
+    `);
+
+    // Galeria de fotos: albuns (eventos) com as fotos enviadas pelo admin.
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS intranet_galeria_albuns (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        titulo VARCHAR(120) NOT NULL,
+        descricao TEXT NULL,
+        data_evento DATE NULL,
+        capa_foto_id INT NULL,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        updated_by VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+
+    await mysqlPool.query(`
+      CREATE TABLE IF NOT EXISTS intranet_galeria_fotos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        album_id INT NOT NULL,
+        imagem_url TEXT NOT NULL,
+        legenda VARCHAR(255) NULL,
+        largura INT NULL,
+        altura INT NULL,
+        ordem INT NOT NULL DEFAULT 0,
+        created_by VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_galeria_fotos_album (album_id, ordem),
+        CONSTRAINT fk_galeria_fotos_album
+          FOREIGN KEY (album_id) REFERENCES intranet_galeria_albuns(id)
           ON DELETE CASCADE
       )
     `);
@@ -2607,6 +2640,317 @@ router.delete(
     }
   }
 );
+
+// --- Galeria de fotos ---
+
+type GaleriaAlbumBody = { titulo: string; descricao: string | null; data_evento: string | null; ativo: number };
+
+function parseGaleriaAlbumBody(body: any): { values?: GaleriaAlbumBody; error?: string } {
+  const titulo = String(body?.titulo || '').trim().slice(0, 120);
+  if (!titulo) return { error: 'Informe o titulo do album.' };
+  const descricao = String(body?.descricao || '').trim().slice(0, 2000) || null;
+  const data = String(body?.data_evento || '').trim();
+  if (data && !/^\d{4}-\d{2}-\d{2}$/.test(data)) return { error: 'Data do evento invalida.' };
+  return { values: { titulo, descricao, data_evento: data || null, ativo: toBoolean(body?.ativo, true) ? 1 : 0 } };
+}
+
+// Capa: a escolhida pelo admin ou, sem escolha, a primeira foto do album.
+const GALERIA_ALBUM_SELECT = `
+  SELECT a.id, a.titulo, a.descricao, a.ativo, a.capa_foto_id,
+         DATE_FORMAT(a.data_evento, '%Y-%m-%d') AS data_evento,
+         (SELECT COUNT(*) FROM intranet_galeria_fotos f WHERE f.album_id = a.id) AS total_fotos,
+         COALESCE(
+           (SELECT f.imagem_url FROM intranet_galeria_fotos f WHERE f.id = a.capa_foto_id AND f.album_id = a.id),
+           (SELECT f.imagem_url FROM intranet_galeria_fotos f WHERE f.album_id = a.id ORDER BY f.ordem, f.id LIMIT 1)
+         ) AS capa_url
+    FROM intranet_galeria_albuns a`;
+
+function mapGaleriaAlbum(row: MysqlRow) {
+  return {
+    id: Number(row.id),
+    titulo: String(row.titulo),
+    descricao: row.descricao ? String(row.descricao) : null,
+    data_evento: row.data_evento ? String(row.data_evento) : null,
+    ativo: Number(row.ativo),
+    capa_foto_id: row.capa_foto_id ? Number(row.capa_foto_id) : null,
+    total_fotos: Number(row.total_fotos || 0),
+    capa_url: row.capa_url ? backendPublicUrl(String(row.capa_url)) : null
+  };
+}
+
+function mapGaleriaFoto(row: MysqlRow) {
+  return {
+    id: Number(row.id),
+    imagem_url: backendPublicUrl(String(row.imagem_url)),
+    legenda: row.legenda ? String(row.legenda) : null,
+    largura: row.largura ? Number(row.largura) : null,
+    altura: row.altura ? Number(row.altura) : null,
+    ordem: Number(row.ordem || 0)
+  };
+}
+
+async function fetchGaleriaFotos(albumId: number) {
+  const [rows] = await mysqlPool.query(
+    `SELECT id, imagem_url, legenda, largura, altura, ordem
+       FROM intranet_galeria_fotos WHERE album_id = ? ORDER BY ordem, id`,
+    [albumId]
+  );
+  return (rows as MysqlRow[]).map(mapGaleriaFoto);
+}
+
+// Apaga o arquivo de /uploads/galeria (melhor esforco: o registro ja saiu do banco).
+async function apagarArquivoGaleria(url: unknown) {
+  const relativo = String(url || '');
+  if (!relativo.startsWith('/uploads/galeria/')) return;
+  const arquivo = path.resolve(uploadsRootDir, relativo.slice('/uploads/'.length));
+  if (!arquivo.startsWith(path.resolve(uploadsRootDir, 'galeria') + path.sep)) return;
+  await unlink(arquivo).catch(() => undefined);
+}
+
+router.get('/galeria', async (req: Request, res: Response) => {
+  if (!getSessionUser(req)) {
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
+  }
+  await ensureFeatureTables();
+  try {
+    const [rows] = await mysqlPool.query(
+      `${GALERIA_ALBUM_SELECT}
+        WHERE a.ativo = 1
+          AND EXISTS (SELECT 1 FROM intranet_galeria_fotos f WHERE f.album_id = a.id)
+        ORDER BY a.data_evento IS NULL, a.data_evento DESC, a.id DESC`
+    );
+    return res.json((rows as MysqlRow[]).map(mapGaleriaAlbum));
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar a galeria.' });
+  }
+});
+
+router.get('/galeria/:id', async (req: Request, res: Response) => {
+  if (!getSessionUser(req)) {
+    return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
+  }
+  await ensureFeatureTables();
+  const albumId = Number(req.params.id);
+  try {
+    const [rows] = await mysqlPool.query(`${GALERIA_ALBUM_SELECT} WHERE a.id = ? AND a.ativo = 1`, [albumId]);
+    const album = (rows as MysqlRow[])[0];
+    if (!album) return res.status(404).json({ error: 'Album nao encontrado.' });
+    return res.json({ ...mapGaleriaAlbum(album), fotos: await fetchGaleriaFotos(albumId) });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar o album.' });
+  }
+});
+
+router.get('/admin/galeria', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res);
+  if (!session) return;
+  await ensureFeatureTables();
+  try {
+    const [rows] = await mysqlPool.query(
+      `${GALERIA_ALBUM_SELECT} ORDER BY a.data_evento IS NULL, a.data_evento DESC, a.id DESC`
+    );
+    return res.json((rows as MysqlRow[]).map(mapGaleriaAlbum));
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar albuns.' });
+  }
+});
+
+router.post('/admin/galeria', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const parsed = parseGaleriaAlbumBody(req.body);
+  if (!parsed.values) return res.status(400).json({ error: parsed.error });
+  const { titulo, descricao, data_evento, ativo } = parsed.values;
+  try {
+    const [result] = await mysqlPool.query(
+      `INSERT INTO intranet_galeria_albuns (titulo, descricao, data_evento, ativo, updated_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [titulo, descricao, data_evento, ativo, session.user.login]
+    );
+    return res.json({ success: true, id: (result as any).insertId });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao criar album.' });
+  }
+});
+
+router.put('/admin/galeria/:id', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const parsed = parseGaleriaAlbumBody(req.body);
+  if (!parsed.values) return res.status(400).json({ error: parsed.error });
+  const { titulo, descricao, data_evento, ativo } = parsed.values;
+  try {
+    const [result] = await mysqlPool.query(
+      `UPDATE intranet_galeria_albuns
+          SET titulo = ?, descricao = ?, data_evento = ?, ativo = ?, updated_by = ?
+        WHERE id = ?`,
+      [titulo, descricao, data_evento, ativo, session.user.login, Number(req.params.id)]
+    );
+    if (!(result as any).affectedRows) return res.status(404).json({ error: 'Album nao encontrado.' });
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao salvar album.' });
+  }
+});
+
+router.delete('/admin/galeria/:id', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const albumId = Number(req.params.id);
+  try {
+    const [fotos] = await mysqlPool.query('SELECT imagem_url FROM intranet_galeria_fotos WHERE album_id = ?', [
+      albumId
+    ]);
+    const [result] = await mysqlPool.query('DELETE FROM intranet_galeria_albuns WHERE id = ?', [albumId]);
+    if (!(result as any).affectedRows) return res.status(404).json({ error: 'Album nao encontrado.' });
+    await Promise.all((fotos as MysqlRow[]).map((row) => apagarArquivoGaleria(row.imagem_url)));
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao excluir album.' });
+  }
+});
+
+router.get('/admin/galeria/:id/fotos', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res);
+  if (!session) return;
+  await ensureFeatureTables();
+  try {
+    return res.json(await fetchGaleriaFotos(Number(req.params.id)));
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao carregar fotos.' });
+  }
+});
+
+// Uma foto por requisicao: o front ja reduz a imagem e envia em sequencia (varias de uma vez).
+router.post('/admin/galeria/:id/fotos', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const albumId = Number(req.params.id);
+  const largura = Math.round(toNumber(req.body?.largura, 0)) || null;
+  const altura = Math.round(toNumber(req.body?.altura, 0)) || null;
+  const legenda = String(req.body?.legenda || '').trim().slice(0, 255) || null;
+  try {
+    const [albuns] = await mysqlPool.query('SELECT id FROM intranet_galeria_albuns WHERE id = ?', [albumId]);
+    if (!(albuns as MysqlRow[]).length) return res.status(404).json({ error: 'Album nao encontrado.' });
+
+    const uploaded = await saveBase64Image({
+      dataUrl: req.body?.data_url,
+      fileName: `galeria-${albumId}-${randomBytes(8).toString('hex')}`,
+      folder: 'galeria'
+    });
+    const [result] = await mysqlPool.query(
+      `INSERT INTO intranet_galeria_fotos (album_id, imagem_url, legenda, largura, altura, ordem, created_by)
+       SELECT ?, ?, ?, ?, ?, COALESCE(MAX(ordem), 0) + 1, ? FROM intranet_galeria_fotos WHERE album_id = ?`,
+      [albumId, uploaded.url, legenda, largura, altura, session.user.login, albumId]
+    );
+    const [rows] = await mysqlPool.query(
+      'SELECT id, imagem_url, legenda, largura, altura, ordem FROM intranet_galeria_fotos WHERE id = ?',
+      [(result as any).insertId]
+    );
+    return res.json({ success: true, foto: mapGaleriaFoto((rows as MysqlRow[])[0]) });
+  } catch (error: any) {
+    return res.status(400).json({ error: error?.message || 'Falha ao enviar foto.' });
+  }
+});
+
+router.put('/admin/galeria/fotos/:fotoId', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const legenda = String(req.body?.legenda || '').trim().slice(0, 255) || null;
+  try {
+    const [result] = await mysqlPool.query('UPDATE intranet_galeria_fotos SET legenda = ? WHERE id = ?', [
+      legenda,
+      Number(req.params.fotoId)
+    ]);
+    if (!(result as any).affectedRows) return res.status(404).json({ error: 'Foto nao encontrada.' });
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao salvar legenda.' });
+  }
+});
+
+router.delete('/admin/galeria/fotos/:fotoId', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const fotoId = Number(req.params.fotoId);
+  try {
+    const [rows] = await mysqlPool.query('SELECT imagem_url FROM intranet_galeria_fotos WHERE id = ?', [fotoId]);
+    const foto = (rows as MysqlRow[])[0];
+    if (!foto) return res.status(404).json({ error: 'Foto nao encontrada.' });
+    await mysqlPool.query('DELETE FROM intranet_galeria_fotos WHERE id = ?', [fotoId]);
+    await mysqlPool.query('UPDATE intranet_galeria_albuns SET capa_foto_id = NULL WHERE capa_foto_id = ?', [fotoId]);
+    await apagarArquivoGaleria(foto.imagem_url);
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao remover foto.' });
+  }
+});
+
+router.put('/admin/galeria/:id/capa', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const albumId = Number(req.params.id);
+  const fotoId = Number(req.body?.foto_id);
+  try {
+    const [result] = await mysqlPool.query(
+      `UPDATE intranet_galeria_albuns a
+          JOIN intranet_galeria_fotos f ON f.id = ? AND f.album_id = a.id
+          SET a.capa_foto_id = f.id, a.updated_by = ?
+        WHERE a.id = ?`,
+      [fotoId, session.user.login, albumId]
+    );
+    if (!(result as any).affectedRows) return res.status(404).json({ error: 'Foto nao encontrada no album.' });
+    return res.json({ success: true });
+  } catch (error: any) {
+    return res.status(500).json({ error: error?.message || 'Falha ao definir capa.' });
+  }
+});
+
+// Nova ordem das fotos: lista de ids na ordem desejada (ids de outro album sao ignorados).
+router.put('/admin/galeria/:id/ordem', async (req: Request, res: Response) => {
+  const session = await requireAdmin(req, res, { requireCsrf: true });
+  if (!session) return;
+  await ensureFeatureTables();
+
+  const albumId = Number(req.params.id);
+  const ids: number[] = (Array.isArray(req.body?.ids) ? req.body.ids : [])
+    .map(Number)
+    .filter((id: number) => Number.isInteger(id) && id > 0);
+  if (!ids.length) return res.status(400).json({ error: 'Ordem invalida.' });
+
+  const connection = await mysqlPool.getConnection();
+  try {
+    await connection.beginTransaction();
+    for (const [indice, id] of ids.entries()) {
+      await connection.query('UPDATE intranet_galeria_fotos SET ordem = ? WHERE id = ? AND album_id = ?', [
+        indice + 1,
+        id,
+        albumId
+      ]);
+    }
+    await connection.commit();
+    return res.json({ success: true });
+  } catch (error: any) {
+    await connection.rollback().catch(() => undefined);
+    return res.status(500).json({ error: error?.message || 'Falha ao salvar a ordem.' });
+  } finally {
+    connection.release();
+  }
+});
 
 // Sorteador: o servidor escolhe o vencedor (randomInt, criptografico) e grava no mesmo passo,
 // assim o historico nao depende do navegador. O front so anima ate o vencedor devolvido.

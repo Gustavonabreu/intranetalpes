@@ -47,6 +47,13 @@ export function Sidebar() {
             </NavLink>
           </li>
 
+          <li className="nav-item" data-tour="menu-galeria">
+            <NavLink to="/galeria" className={navLinkClass}>
+              <i className="fas fa-images" />
+              <span>Galeria</span>
+            </NavLink>
+          </li>
+
           <li className="nav-item" data-tour="menu-empresa">
             <NavLink to="/empresa" className={navLinkClass}>
               {pending.empresa ? (

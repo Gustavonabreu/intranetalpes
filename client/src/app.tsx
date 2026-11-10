@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ElevenLabsPage } from './pages/ElevenLabsPage';
 import EquipamentosPage from './pages/EquipamentosPage';
 import { FalaAlpesPage } from './pages/FalaAlpesPage';
+import { GaleriaPage } from './pages/GaleriaPage';
 import { LoginPage } from './pages/LoginPage';
 import { NossaEquipePage } from './pages/NossaEquipePage';
 import { NoticiasPage } from './pages/NoticiasPage';
@@ -29,6 +30,7 @@ function App() {
           <Route path="/nossa-equipe" element={<NossaEquipePage />} />
           <Route path="/aniversariantes" element={<AniversariantesPage />} />
           <Route path="/noticias" element={<NoticiasPage />} />
+          <Route path="/galeria" element={<GaleriaPage />} />
           <Route path="/equipamentos" element={<EquipamentosPage />} />
           <Route path="/fala-alpes" element={<FalaAlpesPage />} />
           <Route path="/empresa" element={<SobreEmpresa />} />

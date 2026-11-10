@@ -33,6 +33,12 @@ const PASSOS: PassoTour[] = [
     lado: 'direita'
   },
   {
+    alvo: 'menu-galeria',
+    titulo: 'Galeria',
+    texto: 'Os álbuns de fotos dos nossos eventos. Deslize entre os álbuns e clique numa foto para ver em tela cheia.',
+    lado: 'direita'
+  },
+  {
     alvo: 'menu-empresa',
     titulo: 'Sobre a Empresa',
     texto: 'Missão, visão, valores, nossas sedes e o vídeo institucional do Grupo Alpes.',

@@ -6,6 +6,7 @@ const PUBLIC_ROUTES = [
   '/nossa-equipe',
   '/aniversariantes',
   '/noticias',
+  '/galeria',
   '/empresa',
   '/equipamentos',
   '/fala-alpes',

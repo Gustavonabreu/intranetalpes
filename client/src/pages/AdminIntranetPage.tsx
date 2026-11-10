@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   ListOrdered,
   PartyPopper,
+  Images,
   Sparkles,
   UploadCloud,
   Youtube,
@@ -19,6 +20,7 @@ import { VideoFundo } from '../components/VideoFundo';
 import { AvisoFlutuante, mensagemDeErro, useAviso } from '../components/AvisoFlutuante';
 import { AdminFotoCampanhas } from '../components/AdminFotoCampanhas';
 import { AdminTemaFestivo } from '../components/AdminTemaFestivo';
+import { AdminGaleria } from '../components/AdminGaleria';
 import { TemaFestivoModo, useTemaFestivo } from '../temas/TemaFestivo';
 import mountainImage from '../assets/brand/montanha.png';
 import { validarImagemUpload } from '../utils/imagemUpload';
@@ -37,7 +39,7 @@ import {
 } from '../components/AdminEventosCalendario';
 import '../styles/admin-cms.css';
 
-type ModalType = 'imagem' | 'eventos' | 'falaAlpes' | 'setores' | 'sobre' | 'campanhas' | 'tema' | null;
+type ModalType = 'imagem' | 'eventos' | 'falaAlpes' | 'setores' | 'sobre' | 'campanhas' | 'tema' | 'galeria' | null;
 
 type IntranetConfig = {
   id?: number;
@@ -147,6 +149,12 @@ export function AdminIntranetPage() {
       title: 'Sobre a Empresa',
       description: 'Video de fundo da abertura da pagina Sobre a Empresa',
       icon: <Clapperboard size={36} />
+    },
+    {
+      id: 'galeria' as const,
+      title: 'Galeria de Fotos',
+      description: 'Albuns de fotos dos eventos exibidos na pagina Galeria',
+      icon: <Images size={36} />
     },
     {
       id: 'campanhas' as const,
@@ -830,6 +838,13 @@ export function AdminIntranetPage() {
           <div className="admin-block">
             <h3>Campanhas de foto</h3>
             <AdminFotoCampanhas avisar={avisar} />
+          </div>
+        );
+      case 'galeria':
+        return (
+          <div className="admin-block">
+            <h3>Galeria de fotos</h3>
+            <AdminGaleria avisar={avisar} />
           </div>
         );
       case 'tema':

@@ -15,6 +15,7 @@ const routeTitles: Record<string, string> = {
   '/nossa-equipe': 'Nossa equipe',
   '/aniversariantes': 'Aniversariantes',
   '/noticias': 'Noticias',
+  '/galeria': 'Galeria',
   '/equipamentos': 'Equipamentos',
   '/tecnologias': 'Tecnologias',
   '/fala-alpes': 'Fala Alpes',
