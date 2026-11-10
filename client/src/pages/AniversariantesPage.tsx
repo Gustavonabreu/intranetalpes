@@ -163,7 +163,7 @@ export function AniversariantesPage() {
         {/* Destaque: aniversariantes de hoje */}
         {!loading && !error && aniversariantesHoje.length > 0 && (
           <section className="relative mx-auto mb-12 max-w-5xl overflow-hidden rounded-[28px] bg-white/90 px-6 pb-8 pt-9 shadow-2xl ring-1 ring-white/70 backdrop-blur-md md:px-10 dark:bg-slate-900/85 dark:ring-slate-700">
-            <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-blue-600 via-cyan-400 to-blue-600" />
+            <div className="absolute inset-x-0 top-0 h-1.5 bg-[#0e4699]" />
             <div className="aniv-confetes" aria-hidden="true">
               {CONFETES.map((confete, index) => (
                 <span
@@ -179,7 +179,7 @@ export function AniversariantesPage() {
             </div>
 
             <header className="relative mb-8 text-center">
-              <span className="inline-flex items-center gap-2 rounded-full bg-blue-600 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white shadow-md">
+              <span className="inline-flex items-center gap-2 rounded-full bg-[#0e4699] px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white shadow-md">
                 <PartyPopper size={14} /> É hoje!
               </span>
               <h2 className="mt-4 text-2xl font-black text-slate-800 md:text-3xl dark:text-slate-100">
@@ -207,10 +207,10 @@ export function AniversariantesPage() {
                 return (
                   <article
                     key={func.id || `hoje-${name}-${index}`}
-                    className="flex w-full max-w-[300px] flex-col items-center rounded-3xl bg-gradient-to-b from-blue-50 to-white px-6 pb-6 pt-7 text-center shadow-lg ring-1 ring-blue-100 dark:from-slate-800 dark:to-slate-900 dark:ring-slate-700"
+                    className="flex w-full max-w-[300px] flex-col items-center rounded-3xl bg-white px-6 pb-6 pt-7 text-center shadow-lg ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700"
                   >
                     <div className="relative mb-5">
-                      <div className="aniv-aro rounded-full bg-gradient-to-tr from-blue-600 via-cyan-400 to-blue-600 p-1 shadow-xl">
+                      <div className="aniv-aro rounded-full bg-[#0e4699] p-1 shadow-xl">
                         <FotoColaborador
                           src={func.imagem_url}
                           revelarSrc={func.campanha?.revelar ? func.imagem_oficial_url : null}
@@ -232,7 +232,7 @@ export function AniversariantesPage() {
                         {detalhe}
                       </p>
                     ) : null}
-                    <p className="mt-4 rounded-full bg-blue-600/10 px-4 py-1.5 text-sm font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
+                    <p className="mt-4 rounded-full bg-[#0e4699]/10 px-4 py-1.5 text-sm font-semibold text-[#0e4699] dark:bg-blue-500/15 dark:text-blue-300">
                       Parabéns! Muitas felicidades 🎉
                     </p>
                   </article>
@@ -303,13 +303,13 @@ export function AniversariantesPage() {
                         dark:bg-slate-800
                         ${
                           hoje
-                            ? 'border-blue-400 ring-2 ring-blue-300 dark:border-blue-500 dark:ring-blue-700'
+                            ? 'border-[#0e4699] ring-2 ring-[#0e4699]/30 dark:border-blue-500 dark:ring-blue-700'
                             : 'border-slate-200 dark:border-slate-700'
                         }
                       `}
                     >
                       {hoje && (
-                        <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 rounded-full bg-blue-600 px-2.5 py-1 text-[11px] font-bold text-white shadow-lg">
+                        <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1 rounded-full bg-[#0e4699] px-2.5 py-1 text-[11px] font-bold text-white shadow-lg">
                           <PartyPopper size={12} /> HOJE
                         </span>
                       )}
@@ -345,7 +345,7 @@ export function AniversariantesPage() {
                           {name}
                         </h3>
 
-                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold text-xs shadow-md">
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0e4699] text-white font-bold text-xs shadow-md">
                           <Cake size={14} /> DIA {day || '--'}
                         </div>
                       </div>

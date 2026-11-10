@@ -42,7 +42,7 @@ export function FotoColaborador({ src, name, className, initialsClassName, revel
       <div
         role="img"
         aria-label={`Foto de ${name}`}
-        className={`${className} flex items-center justify-center bg-gradient-to-br from-blue-600 to-cyan-500 font-black text-white select-none ${initialsClassName}`}
+        className={`${className} flex items-center justify-center bg-[#0e4699] font-black text-white select-none ${initialsClassName}`}
       >
         {getInitials(name)}
       </div>

@@ -289,7 +289,7 @@ export function WidgetsSidebar({ autoCollapse = false }: WidgetsSidebarProps) {
                       title={isToday ? `Hoje e aniversario de ${name}!` : `Ver aniversariantes do mes`}
                       className={`group flex items-center gap-3 rounded-xl px-2 py-1.5 no-underline transition-colors ${
                         isToday
-                          ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-md'
+                          ? 'bg-[#0e4699] text-white shadow-md'
                           : 'hover:bg-slate-100 dark:hover:bg-slate-800'
                       }`}
                     >
