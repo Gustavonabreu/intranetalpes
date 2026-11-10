@@ -2,17 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Expand, Images, X } from 'lucide-react';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import type { Swiper as SwiperInstance } from 'swiper';
-import { EffectCoverflow, EffectCreative, FreeMode, Keyboard, Navigation, Thumbs, Zoom } from 'swiper/modules';
+import { EffectCoverflow, Keyboard, Navigation, Pagination, Zoom } from 'swiper/modules';
 import { legacyGetJson } from '../services/legacyApi';
 import { GaleriaAlbum, GaleriaAlbumComFotos, formatarDataAlbum } from '../services/galeria';
 
 import 'swiper/css';
 import 'swiper/css/effect-coverflow';
-import 'swiper/css/effect-creative';
-import 'swiper/css/free-mode';
 import 'swiper/css/navigation';
-import 'swiper/css/thumbs';
+import 'swiper/css/pagination';
 import 'swiper/css/zoom';
 import '../styles/galeria.css';
 
@@ -31,8 +28,6 @@ export function GaleriaPage() {
   const [carregandoAlbum, setCarregandoAlbum] = useState(false);
 
   const [fotoAtual, setFotoAtual] = useState(0);
-  const [thumbs, setThumbs] = useState<SwiperInstance | null>(null);
-  const [visor, setVisor] = useState<SwiperInstance | null>(null);
   const [telaCheia, setTelaCheia] = useState<number | null>(null);
 
   useEffect(() => {
@@ -59,7 +54,6 @@ export function GaleriaPage() {
     let ativo = true;
     setCarregandoAlbum(true);
     setFotoAtual(0);
-    setThumbs(null);
     legacyGetJson<GaleriaAlbumComFotos>(`/api/galeria/${albumId}`)
       .then((data) => ativo && setAlbum(data))
       .catch(() => ativo && setAlbum(null))
@@ -84,37 +78,22 @@ export function GaleriaPage() {
     };
   }, [telaCheia]);
 
-  const indiceAlbum = useMemo(() => Math.max(0, albuns.findIndex((item) => item.id === albumId)), [albuns, albumId]);
-
-  // Chamado pelo Swiper (que guarda o handler da montagem): nao comparar com albumId aqui,
-  // ele estaria desatualizado. Repetir o mesmo id nao recarrega nada.
-  function escolherAlbum(indice: number) {
-    const escolhido = albuns[indice];
-    if (!escolhido) return;
-    setAlbumId(escolhido.id);
-    setSearchParams({ album: String(escolhido.id) }, { replace: true });
-  }
-
-  function fecharTelaCheia(indice: number) {
-    setTelaCheia(null);
-    visor?.slideTo(indice, 0);
+  function escolherAlbum(id: number) {
+    setAlbumId(id);
+    setSearchParams({ album: String(id) }, { replace: true });
   }
 
   const fotos = album?.id === albumId ? album.fotos : [];
-  const legendaAtual = fotos[fotoAtual]?.legenda;
+  const albumAtual = useMemo(() => albuns.find((item) => item.id === albumId) || null, [albuns, albumId]);
+  const detalheAlbum = [albumAtual?.titulo, formatarDataAlbum(albumAtual?.data_evento || null)]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <section className="galeria">
       <header className="galeria-topo">
-        <span className="galeria-selo">
-          <Images size={14} /> Galeria
-        </span>
-        <h2>Momentos Alpes</h2>
-        <p>
-          {albuns.length
-            ? `${albuns.length} ${albuns.length === 1 ? 'album' : 'albuns'} · deslize para escolher`
-            : 'Os registros dos nossos eventos e encontros.'}
-        </p>
+        <h2>Galeria</h2>
+        <p>Os registros dos nossos eventos e encontros.</p>
       </header>
 
       {carregando ? <div className="galeria-vazio">Carregando galeria...</div> : null}
@@ -126,132 +105,95 @@ export function GaleriaPage() {
         </div>
       ) : null}
 
-      {albuns.length ? (
-        <>
-          {/* Albuns em carrossel 3D: o do centro e o que esta aberto no visor abaixo. */}
+      {albuns.length > 1 ? (
+        <nav className="galeria-abas" aria-label="Albuns">
+          {albuns.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={item.id === albumId ? 'ativo' : ''}
+              aria-pressed={item.id === albumId}
+              onClick={() => escolherAlbum(item.id)}
+            >
+              {item.titulo}
+              <span>{item.total_fotos}</span>
+            </button>
+          ))}
+        </nav>
+      ) : null}
+
+      {albumAtual ? (
+        <div className="galeria-album-cabecalho">
+          <h3>{albumAtual.titulo}</h3>
+          <p>
+            {[formatarDataAlbum(albumAtual.data_evento), totalFotosTexto(albumAtual.total_fotos)]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+          {album?.descricao ? <p className="galeria-album-descricao">{album.descricao}</p> : null}
+        </div>
+      ) : null}
+
+      {carregandoAlbum && !fotos.length ? <div className="galeria-vazio">Carregando fotos...</div> : null}
+
+      {fotos.length ? (
+        <div className="galeria-carrossel">
+          <button type="button" className="galeria-seta anterior" aria-label="Foto anterior">
+            <ChevronLeft size={34} strokeWidth={1.75} />
+          </button>
+
+          {/* Foto do centro em destaque; as vizinhas aparecem menores e apagadas nas laterais. */}
           <Swiper
-            className="galeria-albuns"
-            modules={[EffectCoverflow, Keyboard]}
+            key={albumId}
+            className="galeria-slides"
+            modules={[EffectCoverflow, Keyboard, Navigation, Pagination]}
             effect="coverflow"
             centeredSlides
             slidesPerView="auto"
             slideToClickedSlide
             grabCursor
-            initialSlide={indiceAlbum}
+            speed={600}
             keyboard={{ enabled: true, onlyInViewport: true }}
-            coverflowEffect={{ rotate: 0, stretch: 0, depth: 220, modifier: 1, scale: 0.86, slideShadows: false }}
-            onSlideChange={(swiper) => escolherAlbum(swiper.activeIndex)}
+            navigation={{ prevEl: '.galeria-seta.anterior', nextEl: '.galeria-seta.proxima' }}
+            pagination={{ clickable: true, dynamicBullets: fotos.length > 7 }}
+            coverflowEffect={{ rotate: 0, stretch: 0, depth: 160, modifier: 1, scale: 0.82, slideShadows: false }}
+            onSlideChange={(swiper) => setFotoAtual(swiper.activeIndex)}
           >
-            {albuns.map((item) => (
-              <SwiperSlide key={item.id} className="galeria-album-slide">
-                <article className={`galeria-album${item.id === albumId ? ' ativo' : ''}`}>
-                  {item.capa_url ? <img src={item.capa_url} alt="" loading="lazy" /> : null}
-                  <div className="galeria-album-info">
-                    <span className="galeria-album-qtd">{totalFotosTexto(item.total_fotos)}</span>
-                    <h3>{item.titulo}</h3>
-                    {item.data_evento ? <time>{formatarDataAlbum(item.data_evento)}</time> : null}
-                  </div>
-                </article>
+            {fotos.map((foto, indice) => (
+              <SwiperSlide key={foto.id} className="galeria-slide">
+                <img
+                  src={foto.imagem_url}
+                  alt={foto.legenda || `Foto ${indice + 1} de ${albumAtual?.titulo || 'album'}`}
+                  loading={indice < 3 ? 'eager' : 'lazy'}
+                  onClick={() => indice === fotoAtual && setTelaCheia(indice)}
+                />
+                <div className="galeria-slide-legenda">
+                  <h4>{foto.legenda || albumAtual?.titulo}</h4>
+                  <p>{foto.legenda ? detalheAlbum : formatarDataAlbum(albumAtual?.data_evento || null)}</p>
+                </div>
+                <button
+                  type="button"
+                  className="galeria-expandir"
+                  aria-label="Ver em tela cheia"
+                  title="Tela cheia"
+                  tabIndex={indice === fotoAtual ? 0 : -1}
+                  onClick={() => setTelaCheia(indice)}
+                >
+                  <Expand size={16} />
+                </button>
               </SwiperSlide>
             ))}
           </Swiper>
 
-          <div className="galeria-visor-area">
-            <div className="galeria-visor-cabecalho">
-              <div>
-                <h3>{album?.titulo || albuns[indiceAlbum]?.titulo}</h3>
-                {album?.descricao ? <p>{album.descricao}</p> : null}
-              </div>
-              {fotos.length ? (
-                <span className="galeria-contador">
-                  <strong>{String(fotoAtual + 1).padStart(2, '0')}</strong> / {String(fotos.length).padStart(2, '0')}
-                </span>
-              ) : null}
-            </div>
-
-            {carregandoAlbum && !fotos.length ? <div className="galeria-vazio">Carregando fotos...</div> : null}
-
-            {fotos.length ? (
-              <>
-                <div className="galeria-visor">
-                  <Swiper
-                    key={albumId}
-                    modules={[EffectCreative, Keyboard, Navigation, Thumbs]}
-                    effect="creative"
-                    creativeEffect={{
-                      prev: { shadow: false, translate: ['-30%', 0, -500], opacity: 0 },
-                      next: { shadow: false, translate: ['100%', 0, 0] }
-                    }}
-                    speed={650}
-                    grabCursor
-                    keyboard={{ enabled: true, onlyInViewport: true }}
-                    navigation={{ prevEl: '.galeria-seta.anterior', nextEl: '.galeria-seta.proxima' }}
-                    thumbs={{ swiper: thumbs && !thumbs.destroyed ? thumbs : null }}
-                    onSwiper={setVisor}
-                    onSlideChange={(swiper) => setFotoAtual(swiper.activeIndex)}
-                  >
-                    {fotos.map((foto, indice) => (
-                      <SwiperSlide key={foto.id} className="galeria-foto-slide">
-                        {/* Fundo: a propria foto desfocada, para fotos em pe nao ficarem com faixas vazias. */}
-                        <div className="galeria-foto-fundo" style={{ backgroundImage: `url("${foto.imagem_url}")` }} />
-                        <img
-                          src={foto.imagem_url}
-                          alt={foto.legenda || `Foto ${indice + 1} de ${album?.titulo || 'album'}`}
-                          loading={indice < 2 ? 'eager' : 'lazy'}
-                          onClick={() => setTelaCheia(indice)}
-                        />
-                      </SwiperSlide>
-                    ))}
-                  </Swiper>
-
-                  <button type="button" className="galeria-seta anterior" aria-label="Foto anterior">
-                    <ChevronLeft size={24} />
-                  </button>
-                  <button type="button" className="galeria-seta proxima" aria-label="Proxima foto">
-                    <ChevronRight size={24} />
-                  </button>
-                  <button
-                    type="button"
-                    className="galeria-expandir"
-                    aria-label="Ver em tela cheia"
-                    title="Tela cheia"
-                    onClick={() => setTelaCheia(fotoAtual)}
-                  >
-                    <Expand size={18} />
-                  </button>
-                  {legendaAtual ? <p className="galeria-legenda">{legendaAtual}</p> : null}
-                </div>
-
-                <Swiper
-                  key={`thumbs-${albumId}`}
-                  className="galeria-miniaturas"
-                  modules={[FreeMode, Thumbs]}
-                  onSwiper={setThumbs}
-                  slidesPerView="auto"
-                  spaceBetween={10}
-                  freeMode
-                  watchSlidesProgress
-                >
-                  {fotos.map((foto, indice) => (
-                    <SwiperSlide key={foto.id} className="galeria-miniatura">
-                      <img src={foto.imagem_url} alt={`Miniatura ${indice + 1}`} loading="lazy" />
-                    </SwiperSlide>
-                  ))}
-                </Swiper>
-              </>
-            ) : null}
-          </div>
-        </>
+          <button type="button" className="galeria-seta proxima" aria-label="Proxima foto">
+            <ChevronRight size={34} strokeWidth={1.75} />
+          </button>
+        </div>
       ) : null}
 
       {telaCheia !== null && fotos.length ? (
         <div className="galeria-tela-cheia" role="dialog" aria-modal="true" aria-label="Foto em tela cheia">
-          <button
-            type="button"
-            className="galeria-fechar"
-            aria-label="Fechar"
-            onClick={() => fecharTelaCheia(telaCheia)}
-          >
+          <button type="button" className="galeria-fechar" aria-label="Fechar" onClick={() => setTelaCheia(null)}>
             <X size={22} />
           </button>
           <Swiper
