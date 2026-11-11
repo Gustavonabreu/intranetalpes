@@ -1,4 +1,4 @@
-import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomInt, scrypt, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -13,7 +13,10 @@ const runtimeDir = RUNTIME_DIR;
 const authStateFile = path.join(runtimeDir, 'auth-state.json');
 
 type SessionUser = {
+  // id = codusu do cadastro antigo (legado_codusu): calendario, GLPI, permissoes e fotos ainda usam ele.
+  // Sem cadastro antigo vira "us<usuario_sistema_id>".
   id: number | string;
+  usuario_sistema_id?: number;
   nome_completo: string;
   login: string;
   role: 'admin' | 'user';
@@ -634,14 +637,16 @@ function normalizeSede(value: unknown): 'todas' | 'curitiba' | 'sao_paulo' | 'ri
   return 'todas';
 }
 
-async function resolveUserSedeByLogin(login: string) {
+async function resolveUserSede(user: SessionUser) {
+  const codusu = codusuDaSessao(user);
+  if (!codusu) return 'todas';
   try {
     const [rows] = await mysqlPool.query(
       `SELECT local, sede, filial, unidade, cidade, grupo
        FROM usuario
-       WHERE login = ?
+       WHERE codusu = ?
        LIMIT 1`,
-      [login]
+      [codusu]
     );
     const users = rows as MysqlRow[];
     if (!users.length) return 'todas';
@@ -717,9 +722,7 @@ async function refreshGoogleAccessToken(refreshToken: string) {
 }
 
 async function resolveMysqlUserIdFromSession(session: { user: SessionUser }) {
-  const direct = Number(session.user.id);
-  if (Number.isFinite(direct) && direct > 0) return direct;
-  return resolveUserIdByLogin(session.user.login);
+  return codusuDaSessao(session.user);
 }
 
 async function getGoogleIntegrationByUserId(userId: number) {
@@ -790,14 +793,18 @@ async function getValidGoogleAccessTokenByUserId(userId: number) {
   return refreshed.access_token;
 }
 
-async function isAdminUser(login: string) {
+// PONTE TEMPORARIA: admin ainda vem do role do cadastro antigo (usuario.role, pelo legado_codusu)
+// ate existir um papel de admin da intranet no Apex (usuarios_sistema.papel_id).
+async function isAdminUser(user: SessionUser) {
+  const codusu = codusuDaSessao(user);
+  if (!codusu) return false;
   try {
     const [rows] = await mysqlPool.query(
       `SELECT role
        FROM usuario
-       WHERE login = ?
+       WHERE codusu = ?
        LIMIT 1`,
-      [login]
+      [codusu]
     );
 
     const users = rows as MysqlRow[];
@@ -827,7 +834,7 @@ async function requireAdmin(
     return null;
   }
 
-  const allowed = await isAdminUser(session.user.login);
+  const allowed = await isAdminUser(session.user);
   if (!allowed) {
     res.status(403).json({ error: 'Acesso restrito a RH/administrador.' });
     return null;
@@ -855,19 +862,10 @@ function isValidVideoFileUrl(value: string) {
   return /^https?:\/\/[^\s]+\.(mp4|webm)(\?[^\s]*)?$/i.test(value.trim());
 }
 
-async function resolveUserIdByLogin(login: string) {
-  const [rows] = await mysqlPool.query(
-    `SELECT codusu, id, codigo
-     FROM usuario
-     WHERE login = ?
-     LIMIT 1`,
-    [login]
-  );
-  const users = rows as MysqlRow[];
-  if (!users.length) return null;
-  const userId = Number(users[0].codusu ?? users[0].id ?? users[0].codigo ?? 0);
-  if (!Number.isFinite(userId) || userId <= 0) return null;
-  return userId;
+// codusu do cadastro antigo (tabela usuario), guardado no id da sessao. null para quem nao tem.
+function codusuDaSessao(user: SessionUser) {
+  const codusu = Number(user.id);
+  return Number.isInteger(codusu) && codusu > 0 ? codusu : null;
 }
 
 async function ensureFeatureTables() {
@@ -1298,6 +1296,95 @@ router.get('/funcionario-foto/:arquivo', async (req: Request, res: Response) => 
   }
 });
 
+// --- Usuarios do sistema (Apex): usuarios_sistema + pessoas, no banco USUARIOS_SISTEMA_DATABASE ---
+const USUARIOS_SISTEMA_DATABASE = (process.env.USUARIOS_SISTEMA_DATABASE || 'alpes').trim();
+
+function usuariosSistemaTable(table: string) {
+  return `${mysqlPool.escapeId(USUARIOS_SISTEMA_DATABASE)}.${mysqlPool.escapeId(table)}`;
+}
+
+// Por login (o campo "Usuario" tambem aceita o e-mail), pelo e-mail da conta Google ou pelo id da sessao.
+// O cadastro antigo (usuario) entra pelo legado_codusu so para role e sede, enquanto ele existir.
+async function buscarUsuarioSistema(por: 'login' | 'email' | 'id', valor: string | number) {
+  const filtro =
+    por === 'id'
+      ? 'us.usuario_sistema_id = ?'
+      : por === 'email'
+        ? 'LOWER(TRIM(p.email)) = LOWER(TRIM(?))'
+        : '(us.login = ? OR LOWER(TRIM(p.email)) = LOWER(TRIM(?)))';
+  // Login exato ganha de e-mail igual.
+  const ordem = por === 'login' ? 'us.login = ? DESC, ' : '';
+  const params = por === 'login' ? [valor, valor, valor] : [valor];
+  const [rows] = await mysqlPool.query(
+    `SELECT us.usuario_sistema_id, us.login, us.senha_hash, us.is_ativo, us.papel_id,
+            p.nome, p.email, f.funcionario_id, f.legado_codusu,
+            u.role, u.local, u.grupo, u.nivel
+       FROM ${usuariosSistemaTable('usuarios_sistema')} us
+       JOIN ${usuariosSistemaTable('pessoas')} p ON p.pessoa_id = us.pessoa_id
+       LEFT JOIN ${usuariosSistemaTable('funcionarios')} f ON f.pessoa_id = us.pessoa_id
+       LEFT JOIN usuario u ON u.codusu = f.legado_codusu
+      WHERE ${filtro}
+      ORDER BY ${ordem}us.is_ativo DESC, f.is_ativo DESC
+      LIMIT 1`,
+    params
+  );
+  return (rows as MysqlRow[])[0] || null;
+}
+
+function sessionUserDoSistema(row: MysqlRow): SessionUser {
+  const codusu = Number(row.legado_codusu);
+  const temCodusu = Number.isInteger(codusu) && codusu > 0;
+  return {
+    id: temCodusu ? codusu : `us${row.usuario_sistema_id}`,
+    usuario_sistema_id: Number(row.usuario_sistema_id),
+    nome_completo: String(row.nome || row.login || 'Usuario'),
+    login: String(row.login || ''),
+    role: inferUserRoleFromRow(row),
+    sede: row.local ?? null,
+    email: row.email ?? null,
+    imagem_url: temCodusu ? userImageUrl({ codusu }) : null,
+    grupo: row.grupo ?? null,
+    nivel: row.nivel ?? null
+  };
+}
+
+// Senha do Apex: "scrypt$<salt hex>$<chave hex>" (scrypt N=16384, r=8, p=1).
+// Aceita o salt como texto ou como bytes, porque o formato nao diz qual dos dois o Apex usa.
+function derivarScrypt(senha: string, salt: string | Buffer, tamanho: number) {
+  return new Promise<Buffer>((resolve, reject) =>
+    scrypt(senha, salt, tamanho, (error, chave) => (error ? reject(error) : resolve(chave)))
+  );
+}
+
+async function conferirSenhaScrypt(senha: string, hash: unknown) {
+  const partes = String(hash || '').split('$');
+  if (partes.length !== 3 || partes[0] !== 'scrypt') return false;
+  const [, saltHex, chaveHex] = partes;
+  if (!/^[0-9a-f]+$/i.test(saltHex) || !/^[0-9a-f]+$/i.test(chaveHex)) return false;
+  const esperada = Buffer.from(chaveHex, 'hex');
+  for (const salt of [saltHex, Buffer.from(saltHex, 'hex')]) {
+    const chave = await derivarScrypt(senha, salt, esperada.length);
+    if (timingSafeEqual(chave, esperada)) return true;
+  }
+  return false;
+}
+
+// Cria a sessao e grava os cookies. Usado pelo login com senha e pelo login com Google.
+// userRow vem de buscarUsuarioSistema.
+async function abrirSessao(res: Response, userRow: MysqlRow) {
+  const sessionToken = createToken(32);
+  const csrfToken = createToken(24);
+  const user = await comFotoDoFuncionario(sessionUserDoSistema(userRow));
+
+  sessionStore.set(sessionToken, { user, expiresAt: now() + SESSION_TTL_MS });
+  csrfBySessionToken.set(sessionToken, csrfToken);
+  persistAuthState();
+
+  setCookie(res, AUTH_COOKIE_NAME, sessionToken, { maxAgeMs: SESSION_TTL_MS });
+  setCookie(res, CSRF_COOKIE_NAME, csrfToken, { httpOnly: false, maxAgeMs: SESSION_TTL_MS });
+  return user;
+}
+
 router.post('/auth/login', async (req: Request, res: Response) => {
   if (!isCsrfValid(req)) {
     return res.status(403).json({ error: 'CSRF token invalido.' });
@@ -1311,34 +1398,15 @@ router.post('/auth/login', async (req: Request, res: Response) => {
   }
 
   try {
-    const [rows] = await mysqlPool.query('SELECT * FROM usuario WHERE login = ? LIMIT 1', [login]);
-    const users = rows as MysqlRow[];
-
-    if (!users.length) {
+    const userRow = await buscarUsuarioSistema('login', login);
+    if (!userRow || !(await conferirSenhaScrypt(senha, userRow.senha_hash))) {
       return res.status(401).json({ error: 'Credenciais invalidas.' });
     }
-
-    const userRow = users[0];
-    if (String(userRow.sts || '').toUpperCase() !== 'ATIVO') {
+    if (!toBoolean(userRow.is_ativo)) {
       return res.status(403).json({ error: 'Usuario inativo.' });
     }
 
-    const senhaBanco = String(userRow.senha || '');
-    if (!senhaBanco || !secureCompare(senhaBanco, senha)) {
-      return res.status(401).json({ error: 'Credenciais invalidas.' });
-    }
-
-    const sessionToken = createToken(32);
-    const csrfToken = createToken(24);
-    const user = await comFotoDoFuncionario(sanitizeUserFromRow(userRow));
-
-    sessionStore.set(sessionToken, { user, expiresAt: now() + SESSION_TTL_MS });
-    csrfBySessionToken.set(sessionToken, csrfToken);
-    persistAuthState();
-
-    setCookie(res, AUTH_COOKIE_NAME, sessionToken, { maxAgeMs: SESSION_TTL_MS });
-    setCookie(res, CSRF_COOKIE_NAME, csrfToken, { httpOnly: false, maxAgeMs: SESSION_TTL_MS });
-
+    const user = await abrirSessao(res, userRow);
     return res.json({ success: true, user });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || 'Falha ao processar login.' });
@@ -1352,16 +1420,18 @@ router.get('/auth/user', async (req: Request, res: Response) => {
   }
 
   try {
-    const [rows] = await mysqlPool.query('SELECT * FROM usuario WHERE login = ? LIMIT 1', [
-      session.user.login
-    ]);
-    const users = rows as MysqlRow[];
-
-    if (!users.length) {
+    // Sessao antiga (da tabela usuario, sem usuario_sistema_id) ou usuario desativado: refaz o login.
+    const userRow = session.user.usuario_sistema_id
+      ? await buscarUsuarioSistema('id', session.user.usuario_sistema_id)
+      : null;
+    if (!userRow || !toBoolean(userRow.is_ativo)) {
+      sessionStore.delete(session.sessionToken);
+      csrfBySessionToken.delete(session.sessionToken);
+      persistAuthState();
       return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
     }
 
-    const freshUser = await comFotoDoFuncionario(sanitizeUserFromRow(users[0]));
+    const freshUser = await comFotoDoFuncionario(sessionUserDoSistema(userRow));
     const expiresAt = now() + SESSION_TTL_MS;
     sessionStore.set(session.sessionToken, { user: freshUser, expiresAt });
     persistAuthState();
@@ -1396,7 +1466,7 @@ router.get('/minhas-permissoes', async (req: Request, res: Response) => {
 
   try {
     await ensureFeatureTables();
-    const userId = await resolveUserIdByLogin(session.user.login);
+    const userId = codusuDaSessao(session.user);
     if (!userId) {
       return res.json({ admin: false, permissoes: [] });
     }
@@ -1704,8 +1774,8 @@ router.get('/eventos-empresa', async (req: Request, res: Response) => {
     const session = getSessionUser(req);
     const userSede = session?.user?.sede
       ? normalizeSede(session.user.sede)
-      : session?.user?.login
-        ? await resolveUserSedeByLogin(session.user.login)
+      : session?.user
+        ? await resolveUserSede(session.user)
         : 'todas';
 
     const [rows] = await mysqlPool.query(
@@ -1778,7 +1848,86 @@ async function startGoogleCalendarOAuth(req: Request, res: Response) {
 router.get('/calendar/connect', startGoogleCalendarOAuth);
 router.get('/auth/google', startGoogleCalendarOAuth);
 
+// --- Login com conta Google ---
+// Usa o mesmo app OAuth e o mesmo redirect URI ja cadastrados para o calendario: o "state"
+// diz se o retorno e de um login ou de uma conexao de agenda.
+const GOOGLE_LOGIN_SCOPE = 'openid email profile';
+const GOOGLE_LOGIN_STATE_TTL_MS = 10 * 60 * 1000;
+const googleLoginState = new Map<string, { next: string; createdAt: number }>();
+
+// So caminhos internos ("/noticias"), nunca outro site ("//x.com", "https://...").
+function destinoSeguro(valor: unknown) {
+  const next = String(valor || '');
+  return next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/dashboard';
+}
+
+function redirecionarLoginComErro(res: Response, motivo: string, next = '/dashboard') {
+  const params = new URLSearchParams({ google_erro: motivo });
+  if (next !== '/dashboard') params.set('next', next);
+  return res.redirect(`${FRONTEND_BASE_URL}/login?${params.toString()}`);
+}
+
+router.get('/auth/google/login', (req: Request, res: Response) => {
+  const next = destinoSeguro(req.query.next);
+  if (!hasGoogleCalendarConfig()) return redirecionarLoginComErro(res, 'nao_configurado', next);
+
+  const limite = now() - GOOGLE_LOGIN_STATE_TTL_MS;
+  for (const [chave, valor] of googleLoginState.entries()) {
+    if (valor.createdAt < limite) googleLoginState.delete(chave);
+  }
+
+  const state = createToken(16);
+  googleLoginState.set(state, { next, createdAt: now() });
+
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: 'code',
+    scope: GOOGLE_LOGIN_SCOPE,
+    prompt: 'select_account',
+    state
+  });
+  return res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+async function handleGoogleLoginCallback(req: Request, res: Response, next: string) {
+  const code = String(req.query.code || '');
+  // Usuario clicou em "Cancelar" na tela do Google.
+  if (!code) return redirecionarLoginComErro(res, req.query.error ? 'cancelado' : 'falha', next);
+
+  try {
+    const token = await exchangeGoogleCodeForToken(code);
+    const perfilResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${token.access_token}` }
+    });
+    if (!perfilResponse.ok) throw new Error(`userinfo ${perfilResponse.status}`);
+    const perfil = (await perfilResponse.json()) as { email?: string; email_verified?: boolean };
+
+    const email = String(perfil.email || '').trim().toLowerCase();
+    if (!email || perfil.email_verified === false) return redirecionarLoginComErro(res, 'email_nao_verificado', next);
+
+    const userRow = await buscarUsuarioSistema('email', email);
+    if (!userRow) return redirecionarLoginComErro(res, 'nao_cadastrado', next);
+    if (!toBoolean(userRow.is_ativo)) return redirecionarLoginComErro(res, 'inativo', next);
+
+    await abrirSessao(res, userRow);
+    return res.redirect(`${FRONTEND_BASE_URL}${next}`);
+  } catch (error) {
+    console.error('Falha no login com Google:', error);
+    return redirecionarLoginComErro(res, 'falha', next);
+  }
+}
+
 async function handleGoogleCalendarOAuthCallback(req: Request, res: Response) {
+  const loginState = googleLoginState.get(String(req.query.state || ''));
+  if (loginState) {
+    googleLoginState.delete(String(req.query.state));
+    if (now() - loginState.createdAt > GOOGLE_LOGIN_STATE_TTL_MS) {
+      return redirecionarLoginComErro(res, 'expirado', loginState.next);
+    }
+    return handleGoogleLoginCallback(req, res, loginState.next);
+  }
+
   await ensureFeatureTables();
   const code = String(req.query.code || '');
   const state = String(req.query.state || '');
@@ -3597,9 +3746,9 @@ router.get('/meus-equipamentos', async (req: Request, res: Response) => {
     const [rows] = await mysqlPool.query(
       `SELECT glpi_user_id
        FROM usuario
-       WHERE login = ?
+       WHERE codusu = ?
        LIMIT 1`,
-      [session.user.login]
+      [codusuDaSessao(session.user) || 0]
     );
 
     const users = rows as MysqlRow[];
