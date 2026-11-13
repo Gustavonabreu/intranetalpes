@@ -5,7 +5,7 @@ import path from 'node:path';
 import { Router, Request, Response } from 'express';
 import { mysqlPool } from '../config/mysql.js';
 import { RUNTIME_DIR, UPLOADS_DIR } from '../config/paths.js';
-import { fetchEquipamentosByGlpiUserId } from '../../services/glpiDbService.js';
+import { fetchEquipamentosByGlpiUserId, findGlpiUserIdByEmail } from '../../services/glpiDbService.js';
 
 const router = Router();
 const uploadsRootDir = UPLOADS_DIR;
@@ -13,10 +13,9 @@ const runtimeDir = RUNTIME_DIR;
 const authStateFile = path.join(runtimeDir, 'auth-state.json');
 
 type SessionUser = {
-  // id = codusu do cadastro antigo (legado_codusu): calendario, GLPI, permissoes e fotos ainda usam ele.
-  // Sem cadastro antigo vira "us<usuario_sistema_id>".
+  // id = funcionario_id do APEX (vw_intranet_colaboradores). Sessao sem funcionario_id e antiga: refaz o login.
   id: number | string;
-  usuario_sistema_id?: number;
+  funcionario_id?: number;
   nome_completo: string;
   login: string;
   role: 'admin' | 'user';
@@ -53,13 +52,14 @@ const USER_PHOTO_EXTENSIONS = (process.env.USER_PHOTO_EXTENSIONS || 'jpg,jpeg,pn
   .split(',')
   .map((ext) => ext.trim().replace(/^\./, '').toLowerCase())
   .filter(Boolean);
-// Banco de onde vem o cadastro de funcionarios (pessoas/funcionarios). Hoje alpes_dev; trocar para prod via env.
-const FUNCIONARIOS_DATABASE = (process.env.FUNCIONARIOS_DATABASE || 'alpes_dev').trim();
+// Banco do Apex: pessoas, funcionarios, cargos, departamentos e usuarios_sistema (login).
+// O mesmo banco que o Apex edita; o banco de testes antigo nao e mais lido.
+const APEX_DATABASE = (process.env.APEX_DATABASE || 'alpes').trim();
 // Fotos de funcionarios do sistema novo (Apex): {FUNCIONARIO_FOTO_SOURCE_URL}/{funcionarios.foto}.
 // A API do Apex exige autenticacao, entao a intranet busca no servidor e repassa (/api/funcionario-foto).
 // FUNCIONARIO_FOTO_AUTH_HEADER (opcional) e enviado nessa busca, ex.: "Authorization: Bearer <token>".
 const FUNCIONARIO_FOTO_SOURCE_URL = (
-  process.env.FUNCIONARIO_FOTO_SOURCE_URL || 'https://apex-dev.alpesmidia.digital/api/rh/fotos'
+  process.env.FUNCIONARIO_FOTO_SOURCE_URL || 'https://apex.alpesmidia.digital/api/rh/fotos'
 )
   .trim()
   .replace(/\/+$/, '');
@@ -230,23 +230,6 @@ function isCsrfValid(req: Request, sessionToken?: string) {
   return true;
 }
 
-function userImageUrl(row: MysqlRow) {
-  const numericId = Number(row.codusu ?? row.id ?? row.codigo ?? 0);
-  if (!Number.isFinite(numericId) || numericId <= 0) return null;
-
-  if (USER_PHOTO_PROXY_ENABLED && Number.isFinite(numericId) && numericId > 0) {
-    const proxyPath = `/api/foto/${numericId}`;
-    if (USER_PHOTO_PROXY_PUBLIC_BASE_URL) {
-      return `${USER_PHOTO_PROXY_PUBLIC_BASE_URL.replace(/\/+$/, '')}${proxyPath}`;
-    }
-    return proxyPath;
-  }
-  if (!USER_PHOTO_BASE_URL) return null;
-
-  const base = USER_PHOTO_BASE_URL.replace(/\/+$/, '');
-  return `${base}/${numericId}.${USER_PHOTO_DEFAULT_EXT}`;
-}
-
 function normalizePhotoBaseUrl(url: string) {
   return url.replace(/\/+$/, '');
 }
@@ -274,23 +257,20 @@ async function fetchPhotoFromSource(userId: number) {
   return null;
 }
 
-function funcionariosTable(table: string) {
-  return `${mysqlPool.escapeId(FUNCIONARIOS_DATABASE)}.${mysqlPool.escapeId(table)}`;
+function apexTable(table: string) {
+  return `${mysqlPool.escapeId(APEX_DATABASE)}.${mysqlPool.escapeId(table)}`;
 }
 
+// Lista da intranet (Nossa Equipe, aniversariantes, campanhas, sorteio): contrato vw_intranet_colaboradores.
+// A view so traz funcionario ativo e dados liberados para a intranet (LGPD): e-mail e telefone sao os corporativos.
 async function fetchFuncionariosIntranet() {
   const [rows] = await mysqlPool.query(
-    `SELECT f.funcionario_id, f.legado_codusu, p.nome, f.foto, c.nome AS cargo,
-            d.nome AS departamento, p.email, p.telefone,
-            DATE_FORMAT(f.data_nascimento, '%d/%m') AS aniversario
-       FROM ${funcionariosTable('funcionarios')} f
-       JOIN ${funcionariosTable('pessoas')} p ON p.pessoa_id = f.pessoa_id
-       LEFT JOIN ${funcionariosTable('funcionario_cargos')} c
-              ON c.funcionario_cargo_id = f.funcionario_cargo_id
-       LEFT JOIN ${funcionariosTable('funcionario_departamentos')} d
-              ON d.funcionario_departamento_id = f.funcionario_departamento_id
-      WHERE f.is_ativo = 1 AND f.is_intranet = 1
-      ORDER BY p.nome`
+    `SELECT funcionario_id, nome, foto, cargo, departamento, unidade,
+            email_corporativo AS email, telefone_interno AS telefone,
+            CONCAT(LPAD(aniversario_dia, 2, '0'), '/', LPAD(aniversario_mes, 2, '0')) AS aniversario
+       FROM ${apexTable('vw_intranet_colaboradores')}
+      WHERE is_intranet = 1
+      ORDER BY nome`
   );
   return rows as MysqlRow[];
 }
@@ -470,51 +450,6 @@ function parseFotoCampanhaBody(body: any) {
   };
 }
 
-function inferUserRoleFromRow(row: MysqlRow): 'admin' | 'user' {
-  const rawRole = String(row.role || row.perfil || row.tipo || '').trim().toLowerCase();
-  if (rawRole === 'admin') return 'admin';
-  return 'user';
-}
-
-function sanitizeUserFromRow(row: MysqlRow): SessionUser {
-  return {
-    id: row.codusu ?? row.id ?? row.codigo ?? row.login,
-    nome_completo: String(row.nome ?? row.nome_completo ?? row.login ?? 'Usuario'),
-    login: String(row.login ?? ''),
-    role: inferUserRoleFromRow(row),
-    sede: row.local ?? row.sede ?? row.filial ?? row.unidade ?? row.cidade ?? null,
-    email: row.email ?? null,
-    imagem_url: userImageUrl(row),
-    grupo: row.grupo ?? null,
-    nivel: row.nivel ?? null
-  };
-}
-
-// Foto do usuario logado igual a da Nossa Equipe: campanha vigente, senao a oficial do Apex.
-// O vinculo usuario -> funcionario e o legado_codusu (ou o nome, para quem ainda nao tem).
-// Sem cadastro no Apex, fica a foto do sistema antigo.
-async function comFotoDoFuncionario(user: SessionUser): Promise<SessionUser> {
-  try {
-    const [rows] = await mysqlPool.query(
-      `SELECT f.funcionario_id, f.foto
-         FROM ${funcionariosTable('funcionarios')} f
-         JOIN ${funcionariosTable('pessoas')} p ON p.pessoa_id = f.pessoa_id
-        WHERE f.is_ativo = 1 AND (f.legado_codusu = ? OR (f.legado_codusu IS NULL AND p.nome = ?))
-        ORDER BY f.legado_codusu = ? DESC
-        LIMIT 1`,
-      [Number(user.id) || 0, user.nome_completo, Number(user.id) || 0]
-    );
-    const funcionario = (rows as MysqlRow[])[0];
-    if (!funcionario) return user;
-    const campanha = (await fetchFotosCampanhaAtivas()).get(Number(funcionario.funcionario_id));
-    const imagem = campanha?.imagem_url || funcionarioImageUrl(funcionario);
-    return imagem ? { ...user, imagem_url: imagem } : user;
-  } catch (error) {
-    console.error('Falha ao buscar foto do funcionario:', error);
-    return user;
-  }
-}
-
 function toBoolean(value: unknown, fallback = false) {
   if (typeof value === 'boolean') return value;
   if (typeof value === 'number') return value === 1;
@@ -637,28 +572,6 @@ function normalizeSede(value: unknown): 'todas' | 'curitiba' | 'sao_paulo' | 'ri
   return 'todas';
 }
 
-async function resolveUserSede(user: SessionUser) {
-  const codusu = codusuDaSessao(user);
-  if (!codusu) return 'todas';
-  try {
-    const [rows] = await mysqlPool.query(
-      `SELECT local, sede, filial, unidade, cidade, grupo
-       FROM usuario
-       WHERE codusu = ?
-       LIMIT 1`,
-      [codusu]
-    );
-    const users = rows as MysqlRow[];
-    if (!users.length) return 'todas';
-    const row = users[0];
-    return normalizeSede(
-      row.local ?? row.sede ?? row.filial ?? row.unidade ?? row.cidade ?? row.grupo ?? null
-    );
-  } catch {
-    return 'todas';
-  }
-}
-
 function hasGoogleCalendarConfig() {
   return Boolean(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REDIRECT_URI);
 }
@@ -722,13 +635,14 @@ async function refreshGoogleAccessToken(refreshToken: string) {
 }
 
 async function resolveMysqlUserIdFromSession(session: { user: SessionUser }) {
-  return codusuDaSessao(session.user);
+  return funcionarioIdDaSessao(session.user);
 }
 
 async function getGoogleIntegrationByUserId(userId: number) {
+  await ensureFeatureTables();
   const [rows] = await mysqlPool.query(
     `SELECT usuario_id, provider, access_token, refresh_token, access_token_expires_at, scope
-     FROM usuario_integracoes
+     FROM intranet_integracoes
      WHERE usuario_id = ? AND provider = ?
      LIMIT 1`,
     [userId, GOOGLE_PROVIDER]
@@ -747,7 +661,7 @@ async function saveGoogleIntegrationByUserId(options: {
   const expiresAtSql = expiresAt.toISOString().slice(0, 19).replace('T', ' ');
 
   await mysqlPool.query(
-    `INSERT INTO usuario_integracoes
+    `INSERT INTO intranet_integracoes
       (usuario_id, provider, access_token, refresh_token, access_token_expires_at, scope)
      VALUES (?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
@@ -793,26 +707,14 @@ async function getValidGoogleAccessTokenByUserId(userId: number) {
   return refreshed.access_token;
 }
 
-// PONTE TEMPORARIA: admin ainda vem do role do cadastro antigo (usuario.role, pelo legado_codusu)
-// ate existir um papel de admin da intranet no Apex (usuarios_sistema.papel_id).
+// Admin e decidido no APEX (permissao "intranet > admin > acessar" -> is_admin_intranet na view).
+// A intranet nao tem cadastro proprio de admins. Relido a cada acesso admin (cache curto).
 async function isAdminUser(user: SessionUser) {
-  const codusu = codusuDaSessao(user);
-  if (!codusu) return false;
+  const funcionarioId = funcionarioIdDaSessao(user);
+  if (!funcionarioId) return false;
   try {
-    const [rows] = await mysqlPool.query(
-      `SELECT role
-       FROM usuario
-       WHERE codusu = ?
-       LIMIT 1`,
-      [codusu]
-    );
-
-    const users = rows as MysqlRow[];
-    if (!users.length) return false;
-    const row = users[0];
-
-    const role = String(row.role || '').trim().toLowerCase();
-    return role === 'admin';
+    const colaborador = await buscarColaborador('funcionario', funcionarioId);
+    return Number(colaborador?.is_admin_intranet) === 1;
   } catch {
     return false;
   }
@@ -862,10 +764,10 @@ function isValidVideoFileUrl(value: string) {
   return /^https?:\/\/[^\s]+\.(mp4|webm)(\?[^\s]*)?$/i.test(value.trim());
 }
 
-// codusu do cadastro antigo (tabela usuario), guardado no id da sessao. null para quem nao tem.
-function codusuDaSessao(user: SessionUser) {
-  const codusu = Number(user.id);
-  return Number.isInteger(codusu) && codusu > 0 ? codusu : null;
+// funcionario_id do APEX guardado na sessao. null em sessao antiga (anterior a view).
+function funcionarioIdDaSessao(user: SessionUser) {
+  const funcionarioId = Number(user.funcionario_id);
+  return Number.isInteger(funcionarioId) && funcionarioId > 0 ? funcionarioId : null;
 }
 
 async function ensureFeatureTables() {
@@ -952,14 +854,19 @@ async function ensureFeatureTables() {
       )
     `);
 
+    // Conexoes do Google Agenda por funcionario_id do APEX (usuario_id = funcionario_id).
     await mysqlPool.query(`
-      CREATE TABLE IF NOT EXISTS permissoes (
+      CREATE TABLE IF NOT EXISTS intranet_integracoes (
         id INT AUTO_INCREMENT PRIMARY KEY,
         usuario_id INT NOT NULL,
-        rota VARCHAR(120) NOT NULL,
-        pode_acessar TINYINT(1) NOT NULL DEFAULT 1,
-        criado_em TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_perm (usuario_id, rota)
+        provider VARCHAR(50) NOT NULL,
+        access_token TEXT NULL,
+        refresh_token TEXT NULL,
+        access_token_expires_at DATETIME NULL,
+        scope VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_usuario_provider (usuario_id, provider)
       )
     `);
 
@@ -988,7 +895,7 @@ async function ensureFeatureTables() {
       )
     `);
 
-    // funcionario_id e o id de funcionarios em FUNCIONARIOS_DATABASE (outro banco: sem FK).
+    // funcionario_id e o id de funcionarios em APEX_DATABASE (outro banco: sem FK).
     await mysqlPool.query(`
       CREATE TABLE IF NOT EXISTS intranet_foto_campanha_fotos (
         campanha_id INT NOT NULL,
@@ -1076,17 +983,6 @@ async function ensureFeatureTables() {
   } catch (error) {
     migrationFailed = true;
     console.error('Falha ao criar tabelas da intranet:', error);
-  }
-
-  try {
-    await mysqlPool.query(
-      `ALTER TABLE usuario ADD COLUMN role ENUM('user','admin') NOT NULL DEFAULT 'user'`
-    );
-  } catch (error: any) {
-    if (error?.code !== 'ER_DUP_FIELDNAME') {
-      migrationFailed = true;
-      console.error('Falha ao adicionar coluna role em usuario:', error);
-    }
   }
 
   try {
@@ -1296,55 +1192,72 @@ router.get('/funcionario-foto/:arquivo', async (req: Request, res: Response) => 
   }
 });
 
-// --- Usuarios do sistema (Apex): usuarios_sistema + pessoas, no banco USUARIOS_SISTEMA_DATABASE ---
-const USUARIOS_SISTEMA_DATABASE = (process.env.USUARIOS_SISTEMA_DATABASE || 'alpes').trim();
+// --- Colaboradores do APEX: contrato vw_intranet_colaboradores ---
+// So funcionario ATIVO esta na view (desligado some sozinho). Cache curto: desligamento e mudanca
+// de admin valem em poucos minutos sem consultar o banco a cada requisicao.
+const COLABORADOR_CACHE_MS = 2 * 60 * 1000;
+const colaboradorCache = new Map<string, { row: MysqlRow | null; em: number }>();
 
-function usuariosSistemaTable(table: string) {
-  return `${mysqlPool.escapeId(USUARIOS_SISTEMA_DATABASE)}.${mysqlPool.escapeId(table)}`;
-}
+async function buscarColaborador(por: 'email' | 'pessoa' | 'funcionario', valor: string | number) {
+  const chave = `${por}:${String(valor).trim().toLowerCase()}`;
+  const guardado = colaboradorCache.get(chave);
+  if (guardado && now() - guardado.em < COLABORADOR_CACHE_MS) return guardado.row;
 
-// Por login (o campo "Usuario" tambem aceita o e-mail), pelo e-mail da conta Google ou pelo id da sessao.
-// O cadastro antigo (usuario) entra pelo legado_codusu so para role e sede, enquanto ele existir.
-async function buscarUsuarioSistema(por: 'login' | 'email' | 'id', valor: string | number) {
   const filtro =
-    por === 'id'
-      ? 'us.usuario_sistema_id = ?'
-      : por === 'email'
-        ? 'LOWER(TRIM(p.email)) = LOWER(TRIM(?))'
-        : '(us.login = ? OR LOWER(TRIM(p.email)) = LOWER(TRIM(?)))';
-  // Login exato ganha de e-mail igual.
-  const ordem = por === 'login' ? 'us.login = ? DESC, ' : '';
-  const params = por === 'login' ? [valor, valor, valor] : [valor];
+    por === 'email'
+      ? 'email_corporativo = LOWER(TRIM(?))'
+      : por === 'pessoa'
+        ? 'pessoa_id = ?'
+        : 'funcionario_id = ?';
   const [rows] = await mysqlPool.query(
-    `SELECT us.usuario_sistema_id, us.login, us.senha_hash, us.is_ativo, us.papel_id,
-            p.nome, p.email, f.funcionario_id, f.legado_codusu,
-            u.role, u.local, u.grupo, u.nivel
-       FROM ${usuariosSistemaTable('usuarios_sistema')} us
-       JOIN ${usuariosSistemaTable('pessoas')} p ON p.pessoa_id = us.pessoa_id
-       LEFT JOIN ${usuariosSistemaTable('funcionarios')} f ON f.pessoa_id = us.pessoa_id
-       LEFT JOIN usuario u ON u.codusu = f.legado_codusu
-      WHERE ${filtro}
-      ORDER BY ${ordem}us.is_ativo DESC, f.is_ativo DESC
-      LIMIT 1`,
-    params
+    `SELECT * FROM ${apexTable('vw_intranet_colaboradores')} WHERE ${filtro} LIMIT 1`,
+    [valor]
   );
-  return (rows as MysqlRow[])[0] || null;
+  const row = (rows as MysqlRow[])[0] || null;
+  if (colaboradorCache.size > 500) colaboradorCache.clear();
+  colaboradorCache.set(chave, { row, em: now() });
+  return row;
 }
 
-function sessionUserDoSistema(row: MysqlRow): SessionUser {
-  const codusu = Number(row.legado_codusu);
-  const temCodusu = Number.isInteger(codusu) && codusu > 0;
+// Login com senha: a usuarios_sistema do APEX so confere login, senha e se o acesso esta ativo.
+// Quem e a pessoa, se pode entrar e se e admin vem da view, pelo pessoa_id. Aceita o e-mail corporativo no lugar do login.
+async function buscarCredencialSistema(login: string) {
+  const [rows] = await mysqlPool.query(
+    `SELECT pessoa_id, senha_hash, is_ativo FROM ${apexTable('usuarios_sistema')} WHERE login = ? LIMIT 1`,
+    [login]
+  );
+  const porLogin = (rows as MysqlRow[])[0];
+  if (porLogin || !login.includes('@')) return porLogin || null;
+
+  const colaborador = await buscarColaborador('email', login);
+  if (!colaborador) return null;
+  const [porPessoa] = await mysqlPool.query(
+    `SELECT pessoa_id, senha_hash, is_ativo FROM ${apexTable('usuarios_sistema')} WHERE pessoa_id = ? LIMIT 1`,
+    [colaborador.pessoa_id]
+  );
+  return (porPessoa as MysqlRow[])[0] || null;
+}
+
+async function sessionUserDoColaborador(row: MysqlRow): Promise<SessionUser> {
+  const funcionarioId = Number(row.funcionario_id);
+  let fotoCampanha: string | null = null;
+  try {
+    // Com campanha vigente, a foto tematica tambem aparece no topo (igual a Nossa Equipe).
+    fotoCampanha = (await fetchFotosCampanhaAtivas()).get(funcionarioId)?.imagem_url || null;
+  } catch (error) {
+    console.error('Falha ao buscar foto de campanha do usuario:', error);
+  }
   return {
-    id: temCodusu ? codusu : `us${row.usuario_sistema_id}`,
-    usuario_sistema_id: Number(row.usuario_sistema_id),
-    nome_completo: String(row.nome || row.login || 'Usuario'),
-    login: String(row.login || ''),
-    role: inferUserRoleFromRow(row),
-    sede: row.local ?? null,
-    email: row.email ?? null,
-    imagem_url: temCodusu ? userImageUrl({ codusu }) : null,
-    grupo: row.grupo ?? null,
-    nivel: row.nivel ?? null
+    id: funcionarioId,
+    funcionario_id: funcionarioId,
+    nome_completo: String(row.nome || 'Usuario'),
+    login: String(row.email_corporativo || ''),
+    role: Number(row.is_admin_intranet) === 1 ? 'admin' : 'user',
+    sede: row.unidade ?? null,
+    email: row.email_corporativo ?? null,
+    imagem_url: fotoCampanha || funcionarioImageUrl(row),
+    grupo: row.departamento ?? null,
+    nivel: null
   };
 }
 
@@ -1370,11 +1283,11 @@ async function conferirSenhaScrypt(senha: string, hash: unknown) {
 }
 
 // Cria a sessao e grava os cookies. Usado pelo login com senha e pelo login com Google.
-// userRow vem de buscarUsuarioSistema.
-async function abrirSessao(res: Response, userRow: MysqlRow) {
+// colaborador = linha da vw_intranet_colaboradores.
+async function abrirSessao(res: Response, colaborador: MysqlRow) {
   const sessionToken = createToken(32);
   const csrfToken = createToken(24);
-  const user = await comFotoDoFuncionario(sessionUserDoSistema(userRow));
+  const user = await sessionUserDoColaborador(colaborador);
 
   sessionStore.set(sessionToken, { user, expiresAt: now() + SESSION_TTL_MS });
   csrfBySessionToken.set(sessionToken, csrfToken);
@@ -1398,15 +1311,21 @@ router.post('/auth/login', async (req: Request, res: Response) => {
   }
 
   try {
-    const userRow = await buscarUsuarioSistema('login', login);
-    if (!userRow || !(await conferirSenhaScrypt(senha, userRow.senha_hash))) {
+    const credencial = await buscarCredencialSistema(login);
+    if (!credencial || !(await conferirSenhaScrypt(senha, credencial.senha_hash))) {
       return res.status(401).json({ error: 'Credenciais invalidas.' });
     }
-    if (!toBoolean(userRow.is_ativo)) {
+    if (!toBoolean(credencial.is_ativo)) {
       return res.status(403).json({ error: 'Usuario inativo.' });
     }
+    const colaborador = await buscarColaborador('pessoa', Number(credencial.pessoa_id));
+    if (!colaborador) {
+      return res
+        .status(403)
+        .json({ error: 'Acesso nao liberado: voce nao esta ativo no cadastro de funcionarios.' });
+    }
 
-    const user = await abrirSessao(res, userRow);
+    const user = await abrirSessao(res, colaborador);
     return res.json({ success: true, user });
   } catch (error: any) {
     return res.status(500).json({ error: error?.message || 'Falha ao processar login.' });
@@ -1420,18 +1339,17 @@ router.get('/auth/user', async (req: Request, res: Response) => {
   }
 
   try {
-    // Sessao antiga (da tabela usuario, sem usuario_sistema_id) ou usuario desativado: refaz o login.
-    const userRow = session.user.usuario_sistema_id
-      ? await buscarUsuarioSistema('id', session.user.usuario_sistema_id)
-      : null;
-    if (!userRow || !toBoolean(userRow.is_ativo)) {
+    // Sessao antiga (sem funcionario_id) ou funcionario que saiu da view (desligado): refaz o login.
+    const funcionarioId = funcionarioIdDaSessao(session.user);
+    const colaborador = funcionarioId ? await buscarColaborador('funcionario', funcionarioId) : null;
+    if (!colaborador) {
       sessionStore.delete(session.sessionToken);
       csrfBySessionToken.delete(session.sessionToken);
       persistAuthState();
       return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
     }
 
-    const freshUser = await comFotoDoFuncionario(sessionUserDoSistema(userRow));
+    const freshUser = await sessionUserDoColaborador(colaborador);
     const expiresAt = now() + SESSION_TTL_MS;
     sessionStore.set(session.sessionToken, { user: freshUser, expiresAt });
     persistAuthState();
@@ -1454,37 +1372,13 @@ router.get('/auth/sessao', (req: Request, res: Response) => {
   return res.json({ sessao_expira_em: session.expiresAt });
 });
 
-router.get('/minhas-permissoes', async (req: Request, res: Response) => {
+// Admin (decidido no APEX) ve tudo; os demais so as telas publicas. Nao ha liberacao por usuario.
+router.get('/minhas-permissoes', (req: Request, res: Response) => {
   const session = getSessionUser(req);
   if (!session) {
     return res.status(403).json({ error: 'Sessao invalida ou expirada.', code: SESSAO_EXPIRADA_CODE });
   }
-
-  if (session.user.role === 'admin') {
-    return res.json({ admin: true, permissoes: [] });
-  }
-
-  try {
-    await ensureFeatureTables();
-    const userId = codusuDaSessao(session.user);
-    if (!userId) {
-      return res.json({ admin: false, permissoes: [] });
-    }
-
-    const [rows] = await mysqlPool.query(
-      `SELECT rota
-       FROM permissoes
-       WHERE usuario_id = ? AND pode_acessar = 1`,
-      [userId]
-    );
-
-    return res.json({
-      admin: false,
-      permissoes: (rows as MysqlRow[]).map((row) => String(row.rota || '')).filter(Boolean)
-    });
-  } catch (error: any) {
-    return res.status(500).json({ error: error?.message || 'Falha ao carregar permissoes.' });
-  }
+  return res.json({ admin: session.user.role === 'admin', permissoes: [] });
 });
 
 router.post('/auth/logout', (req: Request, res: Response) => {
@@ -1772,11 +1666,7 @@ router.get('/eventos-empresa', async (req: Request, res: Response) => {
 
   try {
     const session = getSessionUser(req);
-    const userSede = session?.user?.sede
-      ? normalizeSede(session.user.sede)
-      : session?.user
-        ? await resolveUserSede(session.user)
-        : 'todas';
+    const userSede = normalizeSede(session?.user?.sede);
 
     const [rows] = await mysqlPool.query(
       `SELECT id, titulo, descricao, data_evento, sede_alvo, ativo
@@ -1801,12 +1691,12 @@ router.get('/eventos-empresa', async (req: Request, res: Response) => {
 async function startGoogleCalendarOAuth(req: Request, res: Response) {
   await ensureFeatureTables();
   try {
-    await mysqlPool.query('SELECT 1 FROM usuario_integracoes LIMIT 1');
+    await mysqlPool.query('SELECT 1 FROM intranet_integracoes LIMIT 1');
   } catch (error: any) {
     if (isMissingUsuarioIntegracoesTable(error)) {
       return res.status(503).json({
         error:
-          'Tabela usuario_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
+          'Tabela intranet_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
       });
     }
     throw error;
@@ -1906,11 +1796,10 @@ async function handleGoogleLoginCallback(req: Request, res: Response, next: stri
     const email = String(perfil.email || '').trim().toLowerCase();
     if (!email || perfil.email_verified === false) return redirecionarLoginComErro(res, 'email_nao_verificado', next);
 
-    const userRow = await buscarUsuarioSistema('email', email);
-    if (!userRow) return redirecionarLoginComErro(res, 'nao_cadastrado', next);
-    if (!toBoolean(userRow.is_ativo)) return redirecionarLoginComErro(res, 'inativo', next);
+    const colaborador = await buscarColaborador('email', email);
+    if (!colaborador) return redirecionarLoginComErro(res, 'nao_cadastrado', next);
 
-    await abrirSessao(res, userRow);
+    await abrirSessao(res, colaborador);
     return res.redirect(`${FRONTEND_BASE_URL}${next}`);
   } catch (error) {
     console.error('Falha no login com Google:', error);
@@ -1990,7 +1879,7 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
     if (isMissingUsuarioIntegracoesTable(error)) {
       return res.status(503).json({
         error:
-          'Tabela usuario_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
+          'Tabela intranet_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
       });
     }
     // invalid_grant = o Google nao aceita mais o refresh_token (acesso revogado, senha trocada,
@@ -1998,7 +1887,7 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
     // devolver 500 e a tela ficar vazia. Outros erros (invalid_client) sao de configuracao: nao apaga.
     if (error?.googleError === 'invalid_grant') {
       await mysqlPool.query(
-        `UPDATE usuario_integracoes
+        `UPDATE intranet_integracoes
          SET access_token = NULL, refresh_token = NULL, access_token_expires_at = NULL
          WHERE usuario_id = ? AND provider = ?`,
         [userId, GOOGLE_PROVIDER]
@@ -2043,7 +1932,7 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
     if (!response.ok) {
       if (response.status === 401) {
         await mysqlPool.query(
-          `UPDATE usuario_integracoes
+          `UPDATE intranet_integracoes
            SET access_token = NULL, access_token_expires_at = NULL
            WHERE usuario_id = ? AND provider = ?`,
           [userId, GOOGLE_PROVIDER]
@@ -2102,7 +1991,7 @@ async function getGoogleCalendarEvents(req: Request, res: Response) {
     if (isMissingUsuarioIntegracoesTable(error)) {
       return res.status(503).json({
         error:
-          'Tabela usuario_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
+          'Tabela intranet_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
       });
     }
     return res.status(500).json({ error: error?.message || 'Falha ao carregar eventos.' });
@@ -2136,7 +2025,7 @@ router.get('/calendar/debug', async (req: Request, res: Response) => {
         step: 'integration',
         userId,
         hasIntegrationRow: false,
-        message: 'Nenhum registro em usuario_integracoes para este usuario.'
+        message: 'Nenhum registro em intranet_integracoes para este usuario.'
       });
     }
 
@@ -2266,7 +2155,7 @@ router.get('/calendar/debug', async (req: Request, res: Response) => {
         ok: false,
         step: 'table',
         error:
-          'Tabela usuario_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
+          'Tabela intranet_integracoes nao encontrada. Crie no banco para habilitar o Google Calendar.'
       });
     }
     return res.status(500).json({
@@ -2309,105 +2198,9 @@ router.get('/equipamentos', async (req: Request, res: Response) => {
   }
 });
 
-// Legacy debug route kept for quick checks.
-router.get('/funcionarios-legado', async (req: Request, res: Response) => {
-  try {
-    const [rows] = await mysqlPool.query('SELECT * FROM usuario WHERE sts = ? ORDER BY nome ASC', [
-      'ATIVO'
-    ]);
-    res.json({ success: true, origem: 'MySQL', dados: rows });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // -------------------------
 // Admin: Intranet CMS
 // -------------------------
-
-router.get('/admin/permissoes/:usuario_id', async (req: Request, res: Response) => {
-  const session = await requireAdmin(req, res);
-  if (!session) return;
-
-  await ensureFeatureTables();
-  const usuarioId = toNumber(req.params.usuario_id, 0);
-  if (!usuarioId) return res.status(400).json({ error: 'usuario_id invalido.' });
-
-  const [rows] = await mysqlPool.query(
-    `SELECT rota, pode_acessar
-     FROM permissoes
-     WHERE usuario_id = ?
-     ORDER BY rota ASC`,
-    [usuarioId]
-  );
-
-  return res.json(rows);
-});
-
-router.post('/admin/permissoes', async (req: Request, res: Response) => {
-  const session = await requireAdmin(req, res, { requireCsrf: true });
-  if (!session) return;
-
-  await ensureFeatureTables();
-  const usuarioId = toNumber(req.body?.usuario_id, 0);
-  const rota = normalizeRoutePath(req.body?.rota);
-  if (!usuarioId) return res.status(400).json({ error: 'usuario_id invalido.' });
-  if (!rota || rota === '/') return res.status(400).json({ error: 'rota invalida.' });
-
-  await mysqlPool.query(
-    `INSERT INTO permissoes (usuario_id, rota, pode_acessar)
-     VALUES (?, ?, 1)
-     ON DUPLICATE KEY UPDATE pode_acessar = 1`,
-    [usuarioId, rota]
-  );
-
-  return res.json({ ok: true, acao: 'liberado', usuario_id: usuarioId, rota });
-});
-
-router.delete('/admin/permissoes', async (req: Request, res: Response) => {
-  const session = await requireAdmin(req, res, { requireCsrf: true });
-  if (!session) return;
-
-  await ensureFeatureTables();
-  const usuarioId = toNumber(req.body?.usuario_id, 0);
-  const rota = normalizeRoutePath(req.body?.rota);
-  if (!usuarioId) return res.status(400).json({ error: 'usuario_id invalido.' });
-  if (!rota || rota === '/') return res.status(400).json({ error: 'rota invalida.' });
-
-  await mysqlPool.query(
-    `INSERT INTO permissoes (usuario_id, rota, pode_acessar)
-     VALUES (?, ?, 0)
-     ON DUPLICATE KEY UPDATE pode_acessar = 0`,
-    [usuarioId, rota]
-  );
-
-  return res.json({ ok: true, acao: 'revogado', usuario_id: usuarioId, rota });
-});
-
-router.post('/admin/permissoes/lote', async (req: Request, res: Response) => {
-  const session = await requireAdmin(req, res, { requireCsrf: true });
-  if (!session) return;
-
-  await ensureFeatureTables();
-  const rota = normalizeRoutePath(req.body?.rota);
-  const usuarioIds = Array.isArray(req.body?.usuario_ids)
-    ? req.body.usuario_ids.map((item: unknown) => toNumber(item, 0)).filter((id: number) => id > 0)
-    : [];
-
-  if (!rota || rota === '/') return res.status(400).json({ error: 'rota invalida.' });
-  if (!usuarioIds.length) return res.status(400).json({ error: 'usuario_ids invalido.' });
-
-  for (const usuarioId of usuarioIds) {
-    await mysqlPool.query(
-      `INSERT INTO permissoes (usuario_id, rota, pode_acessar)
-       VALUES (?, ?, 1)
-       ON DUPLICATE KEY UPDATE pode_acessar = 1`,
-      [usuarioId, rota]
-    );
-  }
-
-  return res.json({ ok: true, total: usuarioIds.length, rota });
-});
 
 router.get('/admin/intranet/config', async (req: Request, res: Response) => {
   const session = await requireAdmin(req, res);
@@ -2516,9 +2309,9 @@ router.get('/admin/intranet/setores-ordem', async (req: Request, res: Response) 
   try {
     const [[rows], setorOrdem] = await Promise.all([
       mysqlPool.query(
-        `SELECT DISTINCT TRIM(nome) AS setor
-           FROM ${funcionariosTable('funcionario_departamentos')}
-          WHERE nome IS NOT NULL AND TRIM(nome) <> ''`
+        `SELECT DISTINCT TRIM(departamento) AS setor
+           FROM ${apexTable('vw_intranet_colaboradores')}
+          WHERE departamento IS NOT NULL AND TRIM(departamento) <> ''`
       ),
       fetchSetorOrdem()
     ]);
@@ -3743,23 +3536,14 @@ router.get('/meus-equipamentos', async (req: Request, res: Response) => {
   }
 
   try {
-    const [rows] = await mysqlPool.query(
-      `SELECT glpi_user_id
-       FROM usuario
-       WHERE codusu = ?
-       LIMIT 1`,
-      [codusuDaSessao(session.user) || 0]
-    );
-
-    const users = rows as MysqlRow[];
-    const glpiUserId = Number(users[0]?.glpi_user_id ?? 0);
+    // Vinculo com o GLPI pelo e-mail corporativo (sem cadastro legado).
+    const glpiUserId = session.user.email ? await findGlpiUserIdByEmail(session.user.email) : null;
 
     if (!glpiUserId) {
       return res.json({
         success: true,
         equipamentos: [],
-        mensagem:
-          'Usuario sem vinculo GLPI. Preencha o campo glpi_user_id na tabela usuario para visualizar equipamentos.'
+        mensagem: 'Seu e-mail corporativo nao esta cadastrado no GLPI. Fale com a TI para vincular seus equipamentos.'
       });
     }
 
@@ -3771,13 +3555,6 @@ router.get('/meus-equipamentos', async (req: Request, res: Response) => {
       equipamentos
     });
   } catch (error: any) {
-    if (error?.code === 'ER_BAD_FIELD_ERROR') {
-      return res.status(500).json({
-        success: false,
-        error:
-          "Coluna 'glpi_user_id' nao encontrada na tabela usuario. Crie a coluna para usar Meus Equipamentos."
-      });
-    }
     console.error('Erro na rota /meus-equipamentos:', error?.message || error);
     return res.status(500).json({
       success: false,

@@ -36,6 +36,23 @@ function ensureGlpiDbConfig() {
   }
 }
 
+// Usuario do GLPI pelo e-mail (glpi_useremails). Substitui o glpi_user_id do cadastro legado;
+// quando vier o sistema de ativos proprio, so esta busca muda.
+export async function findGlpiUserIdByEmail(email: string) {
+  ensureGlpiDbConfig();
+  const [rows] = await glpiDbPool.query(
+    `SELECT u.id
+       FROM glpi_useremails e
+       JOIN glpi_users u ON u.id = e.users_id
+      WHERE LOWER(TRIM(e.email)) = LOWER(TRIM(?)) AND u.is_deleted = 0
+      ORDER BY u.is_active DESC, e.is_default DESC
+      LIMIT 1`,
+    [email]
+  );
+  const id = Number((rows as Array<{ id: number }>)[0]?.id ?? 0);
+  return id > 0 ? id : null;
+}
+
 export async function fetchEquipamentosByGlpiUserId(glpiUserId: number) {
   ensureGlpiDbConfig();
 

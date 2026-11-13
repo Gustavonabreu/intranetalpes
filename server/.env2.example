@@ -45,7 +45,8 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=
 
 # Cadastro de funcionarios (pessoas/funcionarios). Trocar para o banco de prod quando migrar.
-FUNCIONARIOS_DATABASE=alpes_dev
+# Banco do APEX com a vw_intranet_colaboradores: alpes em producao, alpes_dev em desenvolvimento.
+APEX_DATABASE=alpes_dev
 # Fotos dos funcionarios no sistema novo (Apex): {SOURCE_URL}/{funcionarios.foto}, repassadas pela intranet
 FUNCIONARIO_FOTO_SOURCE_URL=https://apex-dev.alpesmidia.digital/api/rh/fotos
 # Credencial de servico enviada ao Apex na busca da foto, ex.: Authorization: Bearer <token>

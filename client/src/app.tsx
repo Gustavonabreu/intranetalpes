@@ -35,7 +35,6 @@ function App() {
           <Route path="/fala-alpes" element={<FalaAlpesPage />} />
           <Route path="/empresa" element={<SobreEmpresa />} />
           <Route path="/sem-acesso" element={<SemAcessoPage />} />
-          <Route path="/admin/intranet" element={<AdminIntranetPage />} />
           <Route path="/ia/elevenlabs" element={<ElevenLabsPage />} />
           <Route path="/ia/chatgpt" element={<ChatgptPage />} />
           {/* Tela de acessos (/tecnologias) desativada temporariamente */}
@@ -44,6 +43,8 @@ function App() {
 
       <Route element={<AdminOnlyRoute />}>
         <Route element={<MainLayout />}>
+          {/* Admin (decidido no APEX): tela de administracao (noticias, galeria, configuracoes) e sorteador. */}
+          <Route path="/admin/intranet" element={<AdminIntranetPage />} />
           <Route path="/utilitarios/sorteador" element={<SorteadorPage />} />
         </Route>
       </Route>

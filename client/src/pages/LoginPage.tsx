@@ -7,7 +7,7 @@ import { LEGACY_API_BASE_URL } from '../services/legacyApi';
 
 const GOOGLE_ERROS: Record<string, string> = {
   nao_cadastrado:
-    'Essa conta Google nao esta ligada a nenhum usuario da intranet. Entre com usuario e senha ou fale com o RH/TI.',
+    'Essa conta Google nao e o e-mail corporativo de um funcionario ativo. Entre com usuario e senha ou fale com o RH.',
   inativo: 'Seu usuario esta inativo na intranet.',
   cancelado: 'Login com Google cancelado.',
   expirado: 'O login com Google demorou demais. Tente de novo.',

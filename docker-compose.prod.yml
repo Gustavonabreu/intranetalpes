@@ -10,6 +10,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      # Producao le o APEX de producao (vw_intranet_colaboradores e fotos), mesmo que o .env da VPS diga outra coisa.
+      - APEX_DATABASE=alpes
+      - FUNCIONARIO_FOTO_SOURCE_URL=https://apex.alpesmidia.digital/api/rh/fotos
     expose:
       - "3000"
     volumes:
